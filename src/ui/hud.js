@@ -78,6 +78,23 @@ export class Hud {
     el.classList.toggle(cls, on);
   }
 
+  // A new alien type shows up: a card with its name and how to deal with it
+  introAlien(type, def) {
+    let card = document.getElementById('intro-card');
+    if (!card) {
+      card = document.createElement('div');
+      card.id = 'intro-card';
+      this.el.root.appendChild(card);
+    }
+    card.innerHTML = `<div class="ic-swatch" style="background:${def.colors.shell};color:${def.colors.eye}">${icon('bug')}</div>
+      <div class="ic-body"><div class="ic-kicker">NEW ALIEN</div><div class="ic-name">${def.name.toUpperCase()}</div><div class="ic-desc">${def.desc}</div></div>`;
+    card.classList.remove('show');
+    void card.offsetWidth; // restart the slide-in (rare event, so the layout read is fine)
+    card.classList.add('show');
+    clearTimeout(this.introT);
+    this.introT = setTimeout(() => card.classList.remove('show'), 10000);
+  }
+
   // ------------------------------------------------------------ messages
   message(title, sub = '', { kicker = '', dur = 2.8, style = '' } = {}) {
     const c = this.el.center;
@@ -224,7 +241,7 @@ export class Hud {
       const def = BUILDINGS[g.build.mode];
       const t = g.build.target;
       const reason = t && !t.valid ? `<span style="color:var(--danger)">${t.reason}</span><span class="sep">|</span>` : '';
-      this.set('bh', el.buildHint, `${reason}<span><kbd>LMB</kbd> place ${def.name}</span>${def.rotatable ? '<span class="sep">|</span><span><kbd>R</kbd> rotate</span>' : ''}<span class="sep">|</span><span><kbd>RMB</kbd> cancel</span>`, 'innerHTML');
+      this.set('bh', el.buildHint, `<div class="bh-row">${reason}<span><kbd>LMB</kbd> place ${def.name}</span>${def.rotatable ? '<span class="sep">|</span><span><kbd>R</kbd> rotate</span>' : ''}<span class="sep">|</span><span><kbd>RMB</kbd> cancel</span></div><div class="bh-desc">${def.desc}</div>`, 'innerHTML');
     } else this.set('bh', el.buildHint, '', 'innerHTML');
 
     this.updateStructPanel();

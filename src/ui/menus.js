@@ -301,9 +301,11 @@ export class Menus {
       </div>
       <div class="tips">
         <b>Goal:</b> keep the core in the middle of your base alive. Aliens crawl out of the hives when night falls.<br>
+        <b>Endless:</b> the waves never stop, they just get harder. A new kind of alien shows up every wave until you have met them all, in a different order every game. Every 5th wave brings a boss. How far can you get?<br>
         <b>Crystals</b> come from kills and from clearing waves. Spend them on buildings, building upgrades and the armory.<br>
         <b>Power:</b> turrets need ⚡ power. The core gives 15; build <b>Generators</b> (key 8) for more, and protect them. If a generator is destroyed, the newest turrets go offline.<br>
-        <b>Shields:</b> your suit has an energy shield (blue bar) that soaks damage first and recharges when you avoid hits for a few seconds. <b>Energy Shield</b> walls (key 9) recharge the same way and let your own bullets through.<br>
+        <b>Shields:</b> your suit has an energy shield (blue bar) that soaks damage first and recharges when you avoid hits for a few seconds. <b>Energy Shield</b> walls (key 9) cost more and need power, but repair themselves when not hit and let your own bullets through, so you can shoot from right behind them. <b>Barricades</b> are cheap and need no power, but block your bullets and must be repaired with crystals.<br>
+        <b>Rotate</b> buildings in 45° steps: <kbd>R</kbd> while placing, <kbd>T</kbd> on a placed one.<br>
         <b>Walls change the path</b> the swarm takes: aliens walk around walls when they can, so you can build mazes and choke points. If there is no way around, they chew through.<br>
         <b>High ground:</b> on hilly maps the swarm can only climb up ramps, so ramps are natural choke points. Turrets on a cliff edge see far, and most aliens can't reach you up there (Leapers can jump up, Spitters shoot up).<br>
         <b>Upgrade in the field:</b> aim at a building and press <kbd>E</kbd>. Each building has three levels with new abilities.<br>

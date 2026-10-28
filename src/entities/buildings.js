@@ -8,6 +8,9 @@ import { groundAt, elevation } from '../world/elevation.js';
 const REACH = 15;
 const TRIM = ['#3de0ff', '#ffb43d', '#ff4d6d'];
 const _v = new THREE.Vector3();
+// buildings turn in 45° steps (R while placing, T on a placed one)
+const ROT_STEPS = 8;
+const ROT_ANGLE = (Math.PI * 2) / ROT_STEPS;
 const _w = new THREE.Vector3();
 const _q = new THREE.Quaternion();
 
@@ -395,7 +398,7 @@ export class BuildSystem {
   }
 
   rotate() {
-    this.rotation = (this.rotation + 1) % 4;
+    this.rotation = (this.rotation + 1) % ROT_STEPS;
     this.game.audio.click();
   }
 
@@ -549,13 +552,13 @@ export class BuildSystem {
     const parts = buildModel(type, 0);
     const y = elevation().minAt(x, z, 0.9); // on a slope it sits on the low side and digs into the high side
     parts.group.position.set(x, y, z);
-    parts.group.rotation.y = rotation * Math.PI / 2;
+    parts.group.rotation.y = rotation * ROT_ANGLE;
     this.scene.add(parts.group);
     const hp = this.maxHpFor(type, 0);
     const s = {
       type, def, parts, group: parts.group, i, j, x, y, z, rotation, level: 0,
       hp, maxHp: hp, cd: 0, flash: 0, rise: 0, target: null, spin: 0, fx: 0, invested: def.cost, firing: false,
-      baseYaw: rotation * Math.PI / 2, yaw: rotation * Math.PI / 2,
+      baseYaw: rotation * ROT_ANGLE, yaw: rotation * ROT_ANGLE,
     };
     if (parts.head) parts.head.rotation.y = 0;
     if (isFinite(hp)) this.makeBar(s);
@@ -638,7 +641,7 @@ export class BuildSystem {
     this.scene.remove(s.group);
     const parts = buildModel(s.type, s.level);
     parts.group.position.set(s.x, s.y, s.z);
-    parts.group.rotation.y = s.rotation * Math.PI / 2;
+    parts.group.rotation.y = s.rotation * ROT_ANGLE;
     this.scene.add(parts.group);
     s.parts = parts;
     s.group = parts.group;
@@ -670,7 +673,7 @@ export class BuildSystem {
       }
       if (s.rotation !== rot) {
         s.rotation = rot;
-        s.baseYaw = s.yaw = rot * Math.PI / 2;
+        s.baseYaw = s.yaw = rot * ROT_ANGLE;
         s.group.rotation.y = s.baseYaw;
         if (s.parts.head) s.parts.head.rotation.y = 0;
       }
@@ -706,8 +709,8 @@ export class BuildSystem {
     if (!s.def.rotatable) return;
     if (this.game.net.isClient) { this.game.net.request({ a: 'turn', i: s.i, j: s.j }); this.game.audio.click(); return; }
     this.game.net.structDirty = true;
-    s.rotation = (s.rotation + 1) % 4;
-    s.baseYaw = s.rotation * Math.PI / 2;
+    s.rotation = (s.rotation + 1) % ROT_STEPS;
+    s.baseYaw = s.rotation * ROT_ANGLE;
     s.group.rotation.y = s.baseYaw;
     if (s.parts.head) s.parts.head.rotation.y = 0;
     s.yaw = s.baseYaw;
@@ -792,7 +795,7 @@ export class BuildSystem {
         ghost.visible = true;
         const gy = elevation().minAt(x, z, 0.9);
         ghost.position.set(x, gy + 0.02, z);
-        ghost.rotation.y = this.rotation * Math.PI / 2;
+        ghost.rotation.y = this.rotation * ROT_ANGLE;
         const ok = this.target.valid && game.credits >= this.cost(this.mode);
         this.ghostMat.color.set(ok ? 0x3dff8a : 0xff3d5a);
         this.ghostMat.opacity = 0.32 + Math.sin(game.time * 6) * 0.08;
@@ -813,7 +816,7 @@ export class BuildSystem {
           }
           this.arcMesh.position.set(x, gy + 0.06, z);
           // CircleGeometry theta 0 points +X; rotate so the arc points forward (-Z)
-          this.arcMesh.rotation.y = this.rotation * Math.PI / 2 + Math.PI / 2;
+          this.arcMesh.rotation.y = this.rotation * ROT_ANGLE + Math.PI / 2;
         }
       } else ghost.visible = false;
     } else {

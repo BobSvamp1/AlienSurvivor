@@ -74,7 +74,7 @@ export class EnemyManager {
       pos: rig.root.position,
       vel: new THREE.Vector3(),
       yaw: rig.root.rotation.y,
-      hp: def.hp * mult.hp, maxHp: def.hp * mult.hp, dmgMult: mult.dmg,
+      hp: def.hp * mult.hp, maxHp: def.hp * mult.hp, dmgMult: mult.dmg, spdMult: mult.spd || 1,
       attackCd: 0.5 + Math.random() * 0.5,
       slow: 0, burn: 0, burnDps: 0, shock: 0,
       spawnT: fromHive ? 0 : 1,
@@ -287,7 +287,7 @@ export class EnemyManager {
       e.leapCd -= dt;
 
       const inPool = !def.flying && nav.poolAt(e.pos.x, e.pos.z);
-      let speed = def.speed * (e.slow > 0 ? (e.slowF || 0.45) : 1) * (inPool ? 0.75 : 1) * (e.shock > 0 ? 0.2 : 1);
+      let speed = def.speed * e.spdMult * (e.slow > 0 ? (e.slowF || 0.45) : 1) * (inPool ? 0.75 : 1) * (e.shock > 0 ? 0.2 : 1);
       if (e.spawnT < 1) speed *= 0.3;
 
       let desiredX = 0, desiredZ = 0;

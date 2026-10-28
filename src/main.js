@@ -3,11 +3,12 @@ import './style.css';
 import { Renderer } from './core/renderer.js';
 import { installHeightFog } from './world/atmosphere.js';
 installHeightFog();
-import { loadSettings, saveRecord } from './core/settings.js';
+import { loadSettings, saveRecord, bestWave } from './core/settings.js';
 import { Upgrades } from './core/upgrades.js';
 import { computeMods } from './data/upgrades.js';
 import { getMap, DIFFICULTIES } from './data/maps.js';
-import { waveComposition } from './data/enemies.js';
+import { WavePlanner } from './data/waves.js';
+import { ENEMIES } from './data/enemies.js';
 import { BUILD_ORDER } from './data/buildings.js';
 import { World } from './world/world.js';
 import { Player } from './entities/player.js';
@@ -78,7 +79,9 @@ game.addCredits = (n) => { game.credits += Math.round(n); };
 
 game.enemyMult = () => {
   const d = DIFFICULTIES[game.difficulty];
-  return { hp: (1 + 0.17 * (game.wave - 1) + 0.006 * (game.wave - 1) ** 2) * d.hp, dmg: (1 + 0.06 * (game.wave - 1)) * d.dmg };
+  const w = game.wave - 1;
+  // endless: health keeps climbing, and from wave 12 the swarm also gets faster
+  return { hp: (1 + 0.17 * w + 0.006 * w * w) * d.hp, dmg: (1 + 0.06 * w) * d.dmg, spd: 1 + Math.min(0.45, Math.max(0, game.wave - 12) * 0.02) };
 };
 
 game.enemiesRemaining = () => (game.net.isClient ? game.netRemaining || 0 : game.spawnQueue.length + game.enemies.aliveCount);
@@ -174,9 +177,9 @@ function startWave() {
   if (game.phase !== 'build') return;
   game.wave++;
   game.phase = 'wave';
-  const map = game.world.map;
   const d = DIFFICULTIES[game.difficulty];
-  game.spawnQueue = waveComposition(game.wave, map.enemyBias, d.count);
+  const plan = game.planner.plan(game.wave, d.count);
+  game.spawnQueue = plan.list;
   game.waveTotal = game.spawnQueue.length;
   game.spawnTimer = 2;
   game.waveExtra = 0;
@@ -186,8 +189,7 @@ function startWave() {
   game.activeHives = order.slice(0, n);
   hives.forEach((h, i) => (h.active = game.activeHives.includes(i)));
   game.world.nightTarget = 1;
-  const boss = game.spawnQueue.find((t) => t === 'queen' || t === 'titan') || null;
-  const info = { k: 'wave', w: game.wave, boss, n, total: game.waveTotal };
+  const info = { k: 'wave', w: game.wave, boss: plan.boss, n, total: game.waveTotal, theme: plan.themeName, intro: plan.intro };
   game.net.event(info);
   game.showWaveStart(info);
 }
@@ -199,8 +201,10 @@ game.showWaveStart = (e) => {
   if (e.boss) {
     game.hud.message(`WAVE ${e.w}`, e.boss === 'queen' ? 'The Brood Queen approaches' : 'A Hive Titan is coming', { kicker: 'WARNING', style: 'boss', dur: 4 });
   } else {
-    game.hud.message(`WAVE ${e.w}`, `${e.total} aliens from ${e.n} ${e.n === 1 ? 'hive' : 'hives'}`, { kicker: 'NIGHT FALLS', style: 'danger', dur: 3.2 });
+    game.hud.message(`WAVE ${e.w}`, `${e.total} aliens from ${e.n} ${e.n === 1 ? 'hive' : 'hives'}`, { kicker: e.theme ? `${e.theme} WAVE` : 'NIGHT FALLS', style: 'danger', dur: 3.2 });
   }
+  if (e.intro) game.hud.introAlien(e.intro, ENEMIES[e.intro]);
+
   game.audio.wave(!!e.boss);
   if (game.armoryOpen) game.closeArmory();
   if (game.build.mode) game.build.setMode(game.build.mode);
@@ -221,6 +225,7 @@ function endWave() {
 game.showWaveCleared = (e) => {
   game.audio.setCombat(false);
   game.hud.message(`WAVE ${e.w} CLEARED`, `+${e.bonus} crystals · press B to open the armory`, { kicker: 'DAWN BREAKS', dur: 3.5 });
+  if (game.bestAtStart && e.w === game.bestAtStart + 1) game.hud.toast(`New record on this map: wave ${e.w} survived!`, 'good');
   game.audio.cleared();
   saveRecord(game.mapId, game.difficulty, e.w);
 };
@@ -293,6 +298,9 @@ game.startGame = (mapId, difficulty, opts = {}) => {
     if (game.world) { game.world.dispose(); game.world = null; }
     loadWorld(mapId);
     game.upgrades.reset();
+    // every run gets its own order of new aliens and wave themes
+    game.planner = new WavePlanner((Math.random() * 2 ** 32) >>> 0, getMap(mapId).enemyBias || {});
+    game.bestAtStart = bestWave(mapId, difficulty);
     const map = game.world.map;
     const [ox, oz] = game.net.active ? game.net.spawnOffset() : [0, 0];
     game.player.reset(map.spawn[0] + ox, map.spawn[1] + oz);

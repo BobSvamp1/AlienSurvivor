@@ -1,0 +1,229 @@
+import * as THREE from 'three';
+import { groundAt, CLIMB } from '../world/elevation.js';
+
+const EYE = 1.65;
+const RADIUS = 0.42;
+const RESPAWN_TIME = 6;
+
+export class Player {
+  constructor(game) {
+    this.game = game;
+    this.isPlayer = true;
+    this.pos = new THREE.Vector3();
+    this.vel = new THREE.Vector3();
+    this.radius = RADIUS;
+    this.keys = new Set();
+    this.mouse = { left: false, right: false };
+    this.look = { dx: 0, dy: 0 };
+    this.reset(0, 0);
+
+    window.addEventListener('keydown', (e) => {
+      if (e.target && (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA')) return; // typing a name / code
+      if (['Space', 'Tab'].includes(e.code)) e.preventDefault();
+      if (!e.repeat) game.onKey(e.code);
+      this.keys.add(e.code);
+    });
+    window.addEventListener('keyup', (e) => this.keys.delete(e.code));
+    window.addEventListener('mousemove', (e) => {
+      if (!document.pointerLockElement || !game.running) return;
+      const s = 0.0022 * game.settings.sensitivity * (this.ads ? 0.6 : 1);
+      const dx = Math.max(-200, Math.min(200, e.movementX));
+      const dy = Math.max(-200, Math.min(200, e.movementY));
+      this.yaw -= dx * s;
+      this.pitch -= dy * s * (game.settings.invertY ? -1 : 1);
+      this.pitch = THREE.MathUtils.clamp(this.pitch, -1.5, 1.5);
+      this.look.dx += dx;
+      this.look.dy += dy;
+    });
+    window.addEventListener('mousedown', (e) => {
+      if (!document.pointerLockElement) return;
+      if (e.button === 0) this.mouse.left = true;
+      if (e.button === 2) this.mouse.right = true;
+      game.onMouseDown(e.button);
+    });
+    window.addEventListener('mouseup', (e) => {
+      if (e.button === 0) this.mouse.left = false;
+      if (e.button === 2) this.mouse.right = false;
+    });
+    window.addEventListener('wheel', (e) => {
+      if (document.pointerLockElement) game.onWheel(Math.sign(e.deltaY));
+    });
+    window.addEventListener('contextmenu', (e) => e.preventDefault());
+    window.addEventListener('blur', () => this.clearInput());
+  }
+
+  clearInput() {
+    this.keys.clear();
+    this.mouse.left = this.mouse.right = false;
+  }
+
+  reset(x, z) {
+    this.spawnX = x;
+    this.spawnZ = z;
+    this.pos.set(x, groundAt(x, z), z);
+    this.vel.set(0, 0, 0);
+    this.yaw = 0;
+    this.pitch = -0.05;
+    this.baseMaxHp = 100;
+    this.maxHp = 100;
+    this.hp = 100;
+    this.maxShield = 50;
+    this.shield = 50;
+    this.shieldDelay = 0;
+    this.dead = false;
+    this.respawnT = 0;
+    this.onGround = true;
+    this.bobT = 0;
+    this.bob = 0;
+    this.speedNow = 0;
+    this.regenDelay = 0;
+    this.ads = false;
+    this.adsT = 0;
+    this.sprinting = false;
+    this.landKick = 0;
+    this.poolT = 0;
+  }
+
+  faceTowards(x, z) {
+    this.yaw = Math.atan2(-(x - this.pos.x), -(z - this.pos.z));
+  }
+
+  chest(out = new THREE.Vector3()) {
+    return out.set(this.pos.x, this.pos.y + 1.1, this.pos.z);
+  }
+
+  hurt(amount, fromPos = null) {
+    if (this.dead || this.game.over) return;
+    // the personal energy shield soaks damage first
+    const absorbed = Math.min(this.shield, amount);
+    const hadShield = this.shield > 0;
+    this.shield -= absorbed;
+    this.shieldDelay = 3.5;
+    if (hadShield && this.shield <= 0) { this.game.audio.error(); this.game.hud.toast('Shield down!', 'bad'); }
+    amount -= absorbed;
+    this.hp -= amount;
+    if (amount > 0) this.regenDelay = 4;
+    this.game.hud.damageFlash(Math.min(1, amount / 25 + absorbed / 80));
+    if (fromPos) this.game.hud.damageDir(fromPos);
+    this.game.audio.hurt();
+    this.game.shake(Math.min(0.5, amount / 40));
+    if (this.hp <= 0) {
+      this.hp = 0;
+      this.dead = true;
+      this.respawnT = RESPAWN_TIME;
+      this.clearInput();
+      this.game.stats.deaths++;
+      this.game.hud.setDead(true);
+      this.game.build.setMode(null);
+    }
+  }
+
+  update(dt) {
+    const game = this.game;
+    const cam = game.r.camera;
+    const mods = game.mods;
+    this.maxHp = this.baseMaxHp + mods.maxHpBonus;
+
+    if (this.dead) {
+      this.respawnT -= dt;
+      game.hud.setDeadTimer(this.respawnT);
+      const c = game.core.pos;
+      const t = game.time * 0.15;
+      cam.position.lerp(new THREE.Vector3(c.x + Math.sin(t) * 22, c.y + 16, c.z + Math.cos(t) * 22), Math.min(1, dt * 1.5));
+      cam.lookAt(c.x, c.y + 2, c.z);
+      if (this.respawnT <= 0) {
+        this.dead = false;
+        this.hp = this.maxHp;
+        this.shield = this.maxShield;
+        this.pos.set(this.spawnX, groundAt(this.spawnX, this.spawnZ), this.spawnZ);
+        this.vel.set(0, 0, 0);
+        this.faceTowards(this.spawnX, this.spawnZ - 10);
+        game.hud.setDead(false);
+      } else return;
+    }
+
+    const k = this.keys;
+    const f = (k.has('KeyW') ? 1 : 0) - (k.has('KeyS') ? 1 : 0);
+    const s = (k.has('KeyD') ? 1 : 0) - (k.has('KeyA') ? 1 : 0);
+    this.ads = this.mouse.right && game.build.mode === null && !game.weapon.reloading;
+    this.sprinting = (k.has('ShiftLeft') || k.has('ShiftRight')) && f > 0 && !this.ads && !this.mouse.left;
+    let speed = (this.sprinting ? 10.5 : 6.6) * mods.speedMult * (this.ads ? 0.6 : 1);
+    if (game.world.nav.poolAt(this.pos.x, this.pos.z)) {
+      speed *= 0.65;
+      this.poolT -= dt;
+      if (this.poolT <= 0 && this.onGround) {
+        this.poolT = 0.5;
+        this.hurt(5);
+        game.fx.burst(new THREE.Vector3(this.pos.x, 0.2, this.pos.z), '#b6ff3d', 6, 2, 0.08);
+      }
+    }
+    const sin = Math.sin(this.yaw), cos = Math.cos(this.yaw);
+    let wx = -sin * f + cos * s;
+    let wz = -cos * f - sin * s;
+    const len = Math.hypot(wx, wz);
+    if (len > 0) { wx /= len; wz /= len; }
+
+    const accel = this.onGround ? 12 : 2.5;
+    const a = Math.min(1, accel * dt);
+    this.vel.x += (wx * speed - this.vel.x) * a;
+    this.vel.z += (wz * speed - this.vel.z) * a;
+    if (k.has('Space') && this.onGround) {
+      this.vel.y = 8.2;
+      this.onGround = false;
+    }
+    this.vel.y -= 24 * dt;
+    // horizontal move: you can walk up ramps and small steps, but not up a cliff
+    const ox = this.pos.x, oz = this.pos.z;
+    const nx = ox + this.vel.x * dt, nz = oz + this.vel.z * dt;
+    const canGo = (x, z) => groundAt(x, z) <= this.pos.y + CLIMB;
+    if (canGo(nx, nz)) { this.pos.x = nx; this.pos.z = nz; }
+    else if (canGo(nx, oz)) { this.pos.x = nx; this.vel.z = 0; }
+    else if (canGo(ox, nz)) { this.pos.z = nz; this.vel.x = 0; }
+    else { this.vel.x = 0; this.vel.z = 0; }
+    this.pos.y += this.vel.y * dt;
+    game.resolveCircle(this.pos, RADIUS);
+    if (groundAt(this.pos.x, this.pos.z) > this.pos.y + CLIMB) { this.pos.x = ox; this.pos.z = oz; }
+    const ground = groundAt(this.pos.x, this.pos.z);
+    if (this.pos.y <= ground) {
+      if (!this.onGround && this.vel.y < -6) { this.landKick = Math.min(1, -this.vel.y / 14); game.audio.footstep(); }
+      this.pos.y = ground;
+      this.vel.y = 0;
+      this.onGround = true;
+    } else if (this.onGround && this.vel.y <= 0 && this.pos.y - ground < 0.45) {
+      // stick to the ground when walking down a ramp
+      this.pos.y = ground;
+      this.vel.y = 0;
+    } else {
+      this.onGround = false;
+    }
+
+    this.regenDelay -= dt;
+    if (this.regenDelay <= 0 && this.hp < this.maxHp) this.hp = Math.min(this.maxHp, this.hp + 5 * mods.regenMult * dt);
+    this.shieldDelay -= dt;
+    if (this.shieldDelay <= 0 && this.shield < this.maxShield) this.shield = Math.min(this.maxShield, this.shield + 18 * mods.regenMult * dt);
+
+    // Camera
+    this.speedNow = Math.hypot(this.vel.x, this.vel.z);
+    const prevBob = Math.sin(this.bobT);
+    if (this.onGround && this.speedNow > 0.5) this.bobT += dt * this.speedNow * 1.25;
+    if (Math.sign(Math.sin(this.bobT)) !== Math.sign(prevBob) && this.speedNow > 1) game.audio.footstep();
+    const bobAmt = this.onGround ? Math.min(1, this.speedNow / 7) * (this.ads ? 0.3 : 1) : 0;
+    const bobTarget = Math.abs(Math.sin(this.bobT)) * 0.07 * bobAmt - 0.035 * bobAmt;
+    this.bob += (bobTarget - this.bob) * Math.min(1, dt * 14);
+    this.landKick = Math.max(0, this.landKick - dt * 4);
+    this.adsT += ((this.ads ? 1 : 0) - this.adsT) * Math.min(1, dt * 12);
+
+    const shake = game.shakeOffset;
+    cam.position.set(this.pos.x + shake.x, this.pos.y + 1.65 + this.bob - this.landKick * 0.18 + shake.y, this.pos.z + shake.z);
+    const roll = Math.sin(this.bobT * 0.5) * 0.004 * bobAmt - (s * 0.012);
+    cam.rotation.set(this.pitch + shake.p, this.yaw + shake.q, roll, 'YXZ');
+    const base = game.settings.fov;
+    const targetFov = this.ads ? base * 0.68 : this.sprinting ? base + 7 : base;
+    if (Math.abs(cam.fov - targetFov) > 0.05) {
+      cam.fov += (targetFov - cam.fov) * Math.min(1, dt * 10);
+      cam.updateProjectionMatrix();
+    }
+    cam.updateMatrixWorld();
+    game.audio.setListener(this.pos.x, this.pos.z, this.yaw);
+  }
+}

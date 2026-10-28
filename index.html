@@ -1,0 +1,225 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Alien Survivor</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Chakra+Petch:ital,wght@0,500;0,600;0,700;1,600;1,700&family=Rajdhani:wght@500;600;700&display=swap" rel="stylesheet" />
+  </head>
+  <body>
+    <div id="app"></div>
+    <div id="dmg-layer"></div>
+
+    <!-- ================= HUD ================= -->
+    <div id="hud" class="hidden">
+      <div id="vignette"></div>
+      <div id="lowhp"></div>
+      <div id="dmg-dirs"></div>
+
+      <div id="crosshair"><i></i><i></i><i></i><i></i><b></b></div>
+      <div id="hitmarker"></div>
+
+      <div id="radar-wrap">
+        <canvas id="radar" width="200" height="200"></canvas>
+        <div id="radar-label"></div>
+      </div>
+
+      <div id="top">
+        <div id="wave-title"></div>
+        <div id="wave-sub"></div>
+        <div id="wave-progress"><div></div></div>
+        <div class="bar core-bar"><div id="core-fill"></div><div id="core-ghost"></div><span id="core-text"></span></div>
+      </div>
+
+      <div id="boss" class="hidden">
+        <div id="boss-name"></div>
+        <div class="bar boss-bar"><div id="boss-fill"></div></div>
+      </div>
+
+      <div id="resources">
+        <div class="res credits"><span id="ico-credits"></span><b id="credit-num">0</b></div>
+        <div class="res power"><span id="ico-power"></span><b id="power-num">0 / 15</b></div>
+        <div class="res kills"><span id="ico-kills"></span><b id="kill-num">0</b></div>
+      </div>
+
+      <div id="health">
+        <div class="hp-label"><span id="ico-hp"></span><b id="hp-text">100</b><i id="hp-max">/ 100</i></div>
+        <div class="bar hp-bar"><div id="hp-fill"></div></div>
+        <div class="bar sh-bar"><div id="sh-fill"></div><span id="sh-text">SHIELD 50</span></div>
+      </div>
+
+      <div id="ammo-box">
+        <div id="weapon-name">PULSE RIFLE</div>
+        <div id="ammo"><b id="ammo-cur">30</b><span>/ <i id="ammo-max">30</i></span></div>
+        <div id="reload-bar"><div></div></div>
+        <div id="reload-hint">[R] RELOAD</div>
+      </div>
+
+      <div id="build-hint"></div>
+      <div id="hotbar"></div>
+
+      <div id="struct-panel" class="hidden">
+        <div class="sp-head"><span id="sp-icon"></span><div><div id="sp-name"></div><div id="sp-level"></div></div></div>
+        <div class="bar sp-bar"><div id="sp-fill"></div><span id="sp-hp"></span></div>
+        <div id="sp-stats"></div>
+        <div id="sp-actions"></div>
+      </div>
+
+      <div id="toasts"></div>
+      <div id="center-msg"><div class="cm-kicker"></div><h1></h1><p></p></div>
+
+      <div id="dead-screen" class="hidden">
+        <h1>YOU ARE DOWN</h1>
+        <p></p>
+      </div>
+    </div>
+
+    <!-- ================= MENUS ================= -->
+    <div id="menu-bg" class="hidden"></div>
+
+    <section id="screen-main" class="screen hidden">
+      <div class="main-left">
+        <div class="kicker">CO-OP BASE DEFENSE</div>
+        <h1 class="logo">ALIEN<br /><span>SURVIVOR</span></h1>
+        <p class="tagline">The swarm comes when night falls. Build. Fight. Survive.</p>
+        <nav class="main-nav">
+          <button data-go="maps" class="nav-btn primary"><span class="ico-slot" data-icon="play"></span>PLAY</button>
+          <button data-go="coop" class="nav-btn"><span class="ico-slot" data-icon="users"></span>CO-OP</button>
+          <button data-go="howto" class="nav-btn"><span class="ico-slot" data-icon="book"></span>HOW TO PLAY</button>
+          <button data-go="settings" class="nav-btn"><span class="ico-slot" data-icon="gear"></span>SETTINGS</button>
+        </nav>
+      </div>
+      <div class="main-footer">v0.2 · Built with three.js</div>
+    </section>
+
+    <section id="screen-coop" class="screen hidden">
+      <div class="screen-head">
+        <button class="back-btn" data-back><span class="ico-slot" data-icon="back"></span>BACK</button>
+        <h2>CO-OP</h2>
+      </div>
+      <div class="coop-wrap">
+        <label class="coop-name">YOUR NAME <input id="coop-name" maxlength="14" spellcheck="false" autocomplete="off" /></label>
+        <div class="coop-cols">
+          <div class="coop-card">
+            <h3>HOST A GAME</h3>
+            <p>Create a room and share the code with up to 3 friends. Your computer runs the game.</p>
+            <button id="host-btn" class="big-btn">HOST</button>
+          </div>
+          <div class="coop-card">
+            <h3>JOIN A GAME</h3>
+            <p>Type the room code your friend gives you.</p>
+            <input id="join-code" maxlength="5" placeholder="CODE" spellcheck="false" autocomplete="off" />
+            <button id="join-btn" class="big-btn">JOIN</button>
+          </div>
+        </div>
+        <div id="coop-status"></div>
+      </div>
+    </section>
+
+    <section id="screen-lobby" class="screen hidden">
+      <div class="screen-head">
+        <button id="lobby-leave" class="back-btn"><span class="ico-slot" data-icon="back"></span>LEAVE</button>
+        <h2>LOBBY</h2>
+      </div>
+      <div class="lobby-wrap">
+        <div class="lobby-code">
+          <div class="lc-label">ROOM CODE</div>
+          <div id="lobby-code">-----</div>
+          <button id="copy-code" class="ghost-btn">COPY CODE</button>
+        </div>
+        <div class="lobby-right">
+          <div class="lc-label">SQUAD</div>
+          <div id="lobby-players"></div>
+          <div id="lobby-info"></div>
+          <button id="lobby-start" class="big-btn">SELECT MISSION</button>
+        </div>
+      </div>
+    </section>
+
+    <section id="screen-maps" class="screen hidden">
+      <div class="screen-head">
+        <button class="back-btn" data-back><span class="ico-slot" data-icon="back"></span>BACK</button>
+        <h2>SELECT MISSION</h2>
+      </div>
+      <div id="map-cards"></div>
+      <div class="map-bottom">
+        <div class="diff">
+          <div class="diff-label">DIFFICULTY</div>
+          <div id="diff-buttons"></div>
+          <div id="diff-desc"></div>
+        </div>
+        <div class="deploy-col">
+          <div id="coop-banner" class="hidden"></div>
+          <button id="start-btn" class="big-btn">DEPLOY</button>
+        </div>
+      </div>
+    </section>
+
+    <section id="screen-settings" class="screen hidden">
+      <div class="screen-head">
+        <button class="back-btn" data-back><span class="ico-slot" data-icon="back"></span>BACK</button>
+        <h2>SETTINGS</h2>
+      </div>
+      <div class="panel settings-panel" id="settings-list"></div>
+    </section>
+
+    <section id="screen-howto" class="screen hidden">
+      <div class="screen-head">
+        <button class="back-btn" data-back><span class="ico-slot" data-icon="back"></span>BACK</button>
+        <h2>HOW TO PLAY</h2>
+      </div>
+      <div class="tabs" id="howto-tabs"></div>
+      <div class="panel howto-panel" id="howto-body"></div>
+    </section>
+
+    <section id="screen-pause" class="screen hidden">
+      <div class="center-col">
+        <h2 class="big-title">PAUSED</h2>
+        <nav class="main-nav">
+          <button id="resume-btn" class="nav-btn primary"><span class="ico-slot" data-icon="play"></span>RESUME</button>
+          <button data-go="settings" class="nav-btn"><span class="ico-slot" data-icon="gear"></span>SETTINGS</button>
+          <button data-go="howto" class="nav-btn"><span class="ico-slot" data-icon="book"></span>HOW TO PLAY</button>
+          <button id="restart-btn" class="nav-btn"><span class="ico-slot" data-icon="reload"></span>RESTART</button>
+          <button id="quit-btn" class="nav-btn"><span class="ico-slot" data-icon="back"></span>QUIT TO MENU</button>
+        </nav>
+      </div>
+    </section>
+
+    <section id="screen-armory" class="screen hidden">
+      <div class="screen-head">
+        <h2>ARMORY</h2>
+        <div class="armory-credits"><span id="ico-credits2"></span><b id="armory-credit-num">0</b></div>
+      </div>
+      <div class="tabs" id="armory-tabs"></div>
+      <div id="armory-grid"></div>
+      <div class="armory-foot">
+        <div class="hint">Upgrade individual buildings in the field: aim at them and press <kbd>E</kbd></div>
+        <button id="armory-close" class="big-btn">BACK TO BATTLE</button>
+      </div>
+    </section>
+
+    <section id="screen-over" class="screen hidden">
+      <div class="center-col">
+        <div class="kicker danger">THE CORE HAS FALLEN</div>
+        <h2 class="big-title">DEFEAT</h2>
+        <div id="record-badge" class="hidden">NEW RECORD!</div>
+        <div id="over-stats"></div>
+        <div class="row-btns">
+          <button id="retry-btn" class="big-btn">RETRY</button>
+          <button id="change-map-btn" class="ghost-btn">CHANGE MISSION</button>
+          <button id="menu-btn" class="ghost-btn">MAIN MENU</button>
+        </div>
+        <div id="over-wait" class="hidden">Waiting for the host to restart…
+        </div>
+      </div>
+    </section>
+
+    <div id="notice" class="hidden"></div>
+    <div id="fade"></div>
+    <div id="click-to-play" class="hidden"><div>CLICK TO CONTINUE</div></div>
+
+    <script type="module" src="/src/main.js"></script>
+  </body>
+</html>

@@ -30,7 +30,7 @@ export const THEMES = {
 };
 
 export function waveBudget(wave) {
-  return 4 + wave * 6 + 0.25 * wave * wave;
+  return 4 + wave * 5 + 0.2 * wave * wave;
 }
 
 export class WavePlanner {
@@ -84,8 +84,8 @@ export class WavePlanner {
       counts[type] = (counts[type] || 0) + n;
     };
     // a new alien gets a big, clear group so you notice it
-    if (intro) spend(intro, budget * (wave <= 4 ? 0.4 : 0.32));
-    const rest = budget * (intro ? (wave <= 4 ? 0.6 : 0.68) : 1);
+    if (intro) spend(intro, budget * 0.28);
+    const rest = budget * (intro ? 0.72 : 1);
     const droneShare = theme === 'air' ? 0.15 : T.types && !T.types.includes('drone') ? 0 : chosen.length ? 0.3 : 1;
     if (droneShare) spend('drone', rest * droneShare);
     if (chosen.length) {
@@ -106,7 +106,8 @@ export class WavePlanner {
       const n = 1 + Math.floor(Math.max(0, wave - 15) / 10);
       for (let i = 0; i < n; i++) {
         const k = wave / 5 + i;
-        bosses.push(k % 2 === 1 ? this.firstBoss : this.firstBoss === 'queen' ? 'titan' : 'queen');
+        // the Queen comes first (wave 5), the Titan at wave 10, then it varies
+        bosses.push(wave === 5 ? 'queen' : wave === 10 ? 'titan' : k % 2 === 1 ? this.firstBoss : this.firstBoss === 'queen' ? 'titan' : 'queen');
       }
       for (const b of bosses) list.splice(Math.floor(list.length * (0.35 + r() * 0.3)), 0, b);
     }

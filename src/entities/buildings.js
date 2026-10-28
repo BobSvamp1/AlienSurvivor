@@ -943,7 +943,7 @@ export class BuildSystem {
       s.spin = Math.min(1, s.spin + dt * 3);
       if (off < 0.12 && s.cd <= 0 && s.spin > 0.5) {
         s.cd = 1 / lv.rate;
-        const muzzle = s.parts.muzzles[s.fx++ % s.parts.muzzles.length];
+        const muzzle = s.parts.muzzles[(s.shotN = (s.shotN || 0) + 1) % s.parts.muzzles.length];
         muzzle.getWorldPosition(_w);
         game.enemies.damage(e, lv.dmg * game.mods.turretDmg, { showNumber: false, from: s });
         game.fx.tracer(_w, _v, '#9ff4ff');

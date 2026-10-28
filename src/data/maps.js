@@ -360,9 +360,9 @@ export const MAPS = [
 ];
 
 export const DIFFICULTIES = {
-  recruit: { name: 'Recruit', hp: 0.8, dmg: 0.7, credits: 350, count: 0.85, desc: 'Weaker swarm, more starting crystals.' },
-  veteran: { name: 'Veteran', hp: 1.0, dmg: 1.0, credits: 250, count: 1.0, desc: 'The intended experience.' },
-  nightmare: { name: 'Nightmare', hp: 1.35, dmg: 1.3, credits: 200, count: 1.25, desc: 'Tougher, larger swarms. Good luck.' },
+  recruit: { name: 'Recruit', hp: 0.7, dmg: 0.6, credits: 450, count: 0.75, desc: 'Weaker swarm, more starting crystals.' },
+  veteran: { name: 'Veteran', hp: 1.0, dmg: 1.0, credits: 350, count: 1.0, desc: 'The intended experience.' },
+  nightmare: { name: 'Nightmare', hp: 1.35, dmg: 1.3, credits: 250, count: 1.25, desc: 'Tougher, larger swarms. Good luck.' },
 };
 
 export function getMap(id) {

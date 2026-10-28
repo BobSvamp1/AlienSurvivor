@@ -81,7 +81,7 @@ game.enemyMult = () => {
   const d = DIFFICULTIES[game.difficulty];
   const w = game.wave - 1;
   // endless: health keeps climbing, and from wave 12 the swarm also gets faster
-  return { hp: (1 + 0.17 * w + 0.006 * w * w) * d.hp, dmg: (1 + 0.06 * w) * d.dmg, spd: 1 + Math.min(0.45, Math.max(0, game.wave - 12) * 0.02) };
+  return { hp: (1 + 0.12 * w + 0.007 * w * w) * d.hp, dmg: (1 + 0.05 * w) * d.dmg, spd: 1 + Math.min(0.45, Math.max(0, game.wave - 12) * 0.02) };
 };
 
 game.enemiesRemaining = () => (game.net.isClient ? game.netRemaining || 0 : game.spawnQueue.length + game.enemies.aliveCount);
@@ -213,7 +213,7 @@ game.showWaveStart = (e) => {
 function endWave() {
   game.phase = 'build';
   game.phaseTimer = game.phaseTotal = BUILD_TIME;
-  const bonus = 50 + game.wave * 12;
+  const bonus = 70 + game.wave * 15;
   game.addCredits(bonus);
   game.world.nightTarget = 0;
   game.world.hives.forEach((h) => (h.active = false));
@@ -256,7 +256,10 @@ function updateWave(dt) {
       const a = Math.random() * Math.PI * 2;
       const x = h.pos.x + Math.cos(a) * 1.2;
       const z = h.pos.z + Math.sin(a) * 1.2;
-      game.enemies.spawn(type, x, z, game.enemyMult(), true);
+      const mult = game.enemyMult();
+      // the first bosses are a bit gentler, so they are a challenge rather than a wall
+      if (type === 'queen' || type === 'titan') mult.hp *= game.wave <= 5 ? 0.55 : game.wave <= 10 ? 0.75 : 1;
+      game.enemies.spawn(type, x, z, mult, true);
       game.fx.burst(new THREE.Vector3(x, h.pos.y + 1.5, z), '#b04dff', 6, 4, 0.12);
     }
     if (!game.spawnQueue.length && game.enemies.aliveCount === 0) endWave();

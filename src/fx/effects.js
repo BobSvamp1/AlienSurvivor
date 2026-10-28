@@ -371,6 +371,19 @@ export class Effects {
     n.vx = this.rand(20);
     n.el.textContent = Math.round(amount);
     n.el.className = crit ? 'dmg crit' : 'dmg';
+    n.el.style.color = '';
+  }
+
+  // big floating word for trap combos ("IGNITE!", "INTO THE ABYSS!")
+  label(x, y, z, text, color = '#ffb43d') {
+    const n = this.numbers[this.nNext];
+    this.nNext = (this.nNext + 1) % this.numbers.length;
+    n.p.set(x, y, z);
+    n.life = 1.3;
+    n.vx = 0;
+    n.el.textContent = text;
+    n.el.className = 'dmg combo';
+    n.el.style.color = color;
   }
 
   // ---------------------------------------------------------------- update

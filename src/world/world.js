@@ -1,6 +1,7 @@
 import * as THREE from 'three';
-import { NavGrid, CELL, CLIFF } from './nav.js';
+import { NavGrid, CELL, CLIFF, PIT, VOID } from './nav.js';
 import { Elevation, setElevation } from './elevation.js';
+import { PathPreview } from './paths.js';
 import { mulberry32, fbm } from '../core/rng.js';
 import { detailTextures, radialTexture } from './textures.js';
 import { triplanar, pbr } from '../core/materials.js';
@@ -172,8 +173,10 @@ export class World {
     this.buildProps();
     this.clutter = buildClutter(this, this.clutterPlan);
     this.buildPools();
+    this.buildPits();
     this.buildCore();
     this.buildHives();
+    this.paths = new PathPreview(this);
     this.buildParticles();
     this.buildGridOverlay();
     this.buildAtmosphere();
@@ -189,8 +192,10 @@ export class World {
       const x = nav.cx(i), z = nav.cz(j);
       nav.h[k] = this.elev.at(x, z);
       if (this.elev.flat) continue;
-      if (nav.blocked[k] === CLIFF) nav.blocked[k] = 0;
-      if (!nav.blocked[k] && this.elev.span(x, z, 0.9) > 1.25) { nav.blocked[k] = CLIFF; nav.pool[k] = 0; }
+      if (nav.blocked[k] === CLIFF || nav.blocked[k] === PIT) nav.blocked[k] = 0;
+      if (nav.blocked[k]) continue;
+      if (nav.h[k] < -2) { nav.blocked[k] = PIT; nav.pool[k] = 0; } // chasm
+      else if (this.elev.span(x, z, 0.9) > 1.25) { nav.blocked[k] = CLIFF; nav.pool[k] = 0; }
     }
   }
 
@@ -217,7 +222,8 @@ export class World {
     const nav = this.nav;
     let filled = 0;
     for (let k = 0; k < nav.dist.length; k++) {
-      if (!nav.blocked[k] && !isFinite(nav.dist[k])) { nav.blocked[k] = 1; nav.pool[k] = 0; filled++; }
+      // unreachable: rock on flat maps, plain (rock-free) high ground on canyon maps
+      if (!nav.blocked[k] && !isFinite(nav.dist[k])) { nav.blocked[k] = nav.h[k] > 1.5 ? VOID : 1; nav.pool[k] = 0; filled++; }
     }
     if (filled) nav.computeFlow(this.map.core[0], this.map.core[1], this.coreRadius);
   }
@@ -503,7 +509,7 @@ export class World {
       const z = nav.cz(j) + (rng() - 0.5) * 0.5;
       const hn = fbm(x * 0.12, z * 0.12, 21, 2);
       const type = nav.blocked[k];
-      if (type === CLUTTER) continue;
+      if (type === CLUTTER || type === PIT || type === VOID) continue;
       if (type === CLIFF) {
         // loose boulders piled at the foot of cliffs
         if (rng() < 0.45) {
@@ -929,6 +935,34 @@ export class World {
     this.poolCells = list.length;
   }
 
+  // ---------------------------------------------------------------- chasms
+  // glowing acid far down in every pit, so you can see where to throw aliens
+  buildPits() {
+    const nav = this.nav;
+    const list = [];
+    const dummy = new THREE.Object3D();
+    for (let j = 0; j < nav.rows; j++) for (let i = 0; i < nav.cols; i++) {
+      if (nav.blocked[nav.idx(i, j)] !== PIT) continue;
+      dummy.position.set(nav.cx(i), nav.h[nav.idx(i, j)] + 1.2, nav.cz(j));
+      dummy.rotation.set(-Math.PI / 2, 0, 0);
+      dummy.scale.setScalar(2.3);
+      dummy.updateMatrix();
+      list.push(dummy.matrix.clone());
+    }
+    if (!list.length) return;
+    const mat = new THREE.MeshStandardMaterial({ color: '#2a6a10', emissive: '#6aff2a', emissiveIntensity: 1.1, roughness: 0.1 });
+    const m = this.instanced(new THREE.PlaneGeometry(1, 1), mat, list, { shadow: false });
+    m.receiveShadow = false;
+    // a faint glow rising from the chasm
+    for (let k = 0; k < Math.min(2, Math.ceil(list.length / 12)); k++) {
+      const mx = list[Math.floor((k + 0.5) * list.length / Math.min(2, Math.ceil(list.length / 12)))];
+      const p = new THREE.Vector3().setFromMatrixPosition(mx);
+      const l = new THREE.PointLight('#7aff3a', 6, 12, 1.5);
+      l.position.set(p.x, p.y + 1.5, p.z);
+      this.group.add(l);
+    }
+  }
+
   // ---------------------------------------------------------------- core
   buildCore() {
     const g = new THREE.Group();
@@ -1240,6 +1274,8 @@ export class World {
   }
 
   update(dt, time) {
+    const g = this.game;
+    this.paths.update(dt, g.inGame && !g.over && g.phase === 'build', g.nextHives || []);
     if (Math.abs(this.night - this.nightTarget) > 0.001) {
       this.night += (this.nightTarget - this.night) * Math.min(1, dt * 0.7);
       this.applyNight(this.night);

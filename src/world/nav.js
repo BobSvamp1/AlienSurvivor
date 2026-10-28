@@ -5,6 +5,9 @@ import { STEP } from './elevation.js';
 
 export const CELL = 2;
 export const CLIFF = 4; // value in blocked: cell on a cliff edge (not walkable, not buildable, but not a solid box)
+export const PIT = 5; // a chasm: anything that falls in dies
+export const VOID = 6; // high ground nobody can reach (tops of canyon walls)
+const SOFT = (b) => b === CLIFF || b === PIT || b === VOID; // blocks walking/building but is not a solid box
 const HALF = CELL / 2;
 const SQRT2 = Math.SQRT2;
 const N8 = [[1, 0], [-1, 0], [0, 1], [0, -1], [1, 1], [1, -1], [-1, 1], [-1, -1]];
@@ -203,7 +206,7 @@ export class NavGrid {
       if (this.inside(i, j)) {
         const k = this.idx(i, j);
         s = this.struct[k];
-        if ((!this.blocked[k] || this.blocked[k] === CLIFF) && !(s && s.def.solid)) continue;
+        if ((!this.blocked[k] || SOFT(this.blocked[k])) && !(s && s.def.solid)) continue;
       }
       const cx = this.cx(i), cz = this.cz(j);
       const nx = Math.max(cx - HALF, Math.min(pos.x, cx + HALF));
@@ -251,7 +254,7 @@ export class NavGrid {
       const i = this.ci(x1 + (x2 - x1) * t), j = this.cj(z1 + (z2 - z1) * t);
       if (!this.inside(i, j)) return false;
       const b = this.blocked[this.idx(i, j)];
-      if (b && b !== CLIFF) return false;
+      if (b && !SOFT(b)) return false;
     }
     return true;
   }

@@ -197,6 +197,13 @@ export class Player {
       this.onGround = false;
     }
 
+    // fell into a chasm: hurt and climb back out at the spawn point
+    if (this.pos.y < -3.5) {
+      this.pos.set(this.spawnX, groundAt(this.spawnX, this.spawnZ), this.spawnZ);
+      this.vel.set(0, 0, 0);
+      this.hurt(35);
+      game.hud.toast('You fell into the abyss!', 'warn');
+    }
     this.regenDelay -= dt;
     if (this.regenDelay <= 0 && this.hp < this.maxHp) this.hp = Math.min(this.maxHp, this.hp + 5 * mods.regenMult * dt);
     this.shieldDelay -= dt;

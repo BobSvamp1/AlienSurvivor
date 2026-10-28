@@ -75,9 +75,57 @@ export const BUILDINGS = {
       { hp: 1000, regen: 80, thorns: 10, power: 4, cost: 220, note: 'Overcharged: shocks attackers' },
     ],
   },
+
+  // ---------------- traps (Orcs Must Die style) ----------------
+  spikes: {
+    name: 'Plasma Spikes', short: 'Spikes', cost: 60, solid: false, floor: true, rotatable: false,
+    desc: 'Floor plate that stabs everything walking over it. No power needed. Great after a Goo Pool or at the end of a Launcher throw.',
+    levels: [
+      { dmg: 40, rate: 0.9 },
+      { dmg: 65, rate: 1.1, cost: 60, note: '+dmg, faster' },
+      { dmg: 95, rate: 1.35, cost: 110, note: 'Barbed: even more damage' },
+    ],
+  },
+  goo: {
+    name: 'Goo Pool', short: 'Goo', cost: 40, solid: false, floor: true, rotatable: false,
+    desc: 'Sticky slime: aliens wade through it slowly and come out covered in fuel. Fire from Flame Vents makes gooey aliens explode in flames.',
+    levels: [
+      { slow: 0.45 },
+      { slow: 0.33, cost: 40, note: 'Stickier' },
+      { slow: 0.25, acid: 14, cost: 80, note: 'Acidic: also burns them' },
+    ],
+  },
+  vent: {
+    name: 'Flame Vent', short: 'Vent', cost: 110, solid: false, floor: true, rotatable: false,
+    desc: 'Blasts fire up from the floor when aliens step on it. Combo: aliens covered in Goo IGNITE for huge damage that spreads.',
+    levels: [
+      { dmg: 30, burn: 10, rate: 0.6, radius: 1.4, power: 1 },
+      { dmg: 45, burn: 16, rate: 0.75, radius: 1.6, power: 1, cost: 100, note: 'Hotter' },
+      { dmg: 65, burn: 24, rate: 0.9, radius: 2.3, power: 2, cost: 160, note: 'Wide blast' },
+    ],
+  },
+  launcher: {
+    name: 'Gravity Launcher', short: 'Launch', cost: 140, solid: false, floor: true, rotatable: true, directional: true,
+    desc: 'Flings aliens through the air the way it points (R to rotate). Throw them into chasms, onto Spikes or back where they came from!',
+    levels: [
+      { dist: 9, rate: 0.45, power: 1 },
+      { dist: 11, rate: 0.6, power: 1, cost: 110, note: 'Further, faster' },
+      { dist: 12, rate: 0.75, heavy: true, power: 2, cost: 180, note: 'Strong enough for heavy aliens' },
+    ],
+  },
+  laser: {
+    name: 'Laser Fence', short: 'Laser', cost: 120, solid: false, wall: true, rotatable: false,
+    desc: 'Mounts on a wall and fires a laser straight across the corridor, hitting every alien in the line. Must be placed next to a wall or cliff.',
+    levels: [
+      { dmg: 26, rate: 1.0, range: 14, power: 2 },
+      { dmg: 38, rate: 1.3, range: 16, power: 2, cost: 110, note: '+dmg, faster' },
+      { dmg: 52, rate: 1.7, range: 18, power: 3, cost: 180, note: 'Overcharged beam' },
+    ],
+  },
 };
 
 // Power the core provides on its own (more from generators and the Core Reactor upgrade)
 export const CORE_POWER = 15;
 
-export const BUILD_ORDER = ['barricade', 'gatling', 'flamer', 'tesla', 'mortar', 'trap', 'generator', 'shield'];
+// hotbar: keys 2-9 and 0
+export const BUILD_ORDER = ['barricade', 'spikes', 'goo', 'vent', 'launcher', 'laser', 'gatling', 'tesla', 'generator'];

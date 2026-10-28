@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { ENEMIES } from '../data/enemies.js';
 import { BugRig, flushLegs } from './bugRig.js';
 import { groundAt, CLIMB } from '../world/elevation.js';
+import { PIT } from '../world/nav.js';
 import { SegmentRig, BipedRig, JellyRig } from './rigs.js';
 
 const _v = new THREE.Vector3();
@@ -277,9 +278,10 @@ export class EnemyManager {
       e.slow = Math.max(0, e.slow - dt);
       if (e.slow <= 0) e.slowF = 1;
       e.shock = Math.max(0, e.shock - dt);
+      if (e.oiled > 0) e.oiled -= dt;
       if (e.burn > 0) {
         e.burn -= dt;
-        this.damage(e, e.burnDps * dt, { showNumber: false });
+        this.damage(e, e.burnDps * dt * (e.oiled > 0 ? 2 : 1), { showNumber: false });
         if (Math.random() < dt * 14) game.fx.fire(_v.set(e.pos.x + (Math.random() - 0.5) * def.radius, e.pos.y + e.rig.baseH + 0.2, e.pos.z + (Math.random() - 0.5) * def.radius));
         if (e.dead) continue;
       }
@@ -430,6 +432,7 @@ export class EnemyManager {
             e.fallV = (e.fallV || 0) + 20 * dt;
             e.pos.y = Math.max(gy, e.pos.y - e.fallV * dt);
           } else { e.pos.y = gy; e.fallV = 0; }
+          if (e.pos.y < -2.5) { this.fallDeath(e); continue; } // shoved into a chasm
         }
         // keep out of the core
         const cdx = e.pos.x - core.pos.x, cdz = e.pos.z - core.pos.z;
@@ -710,6 +713,44 @@ export class EnemyManager {
     return false;
   }
 
+  // Gravity Launcher: throw an alien up to `dist` metres along (dx, dz)
+  fling(e, dx, dz, dist) {
+    if (e.dead || e.leap || e.hidden || e.def.flying) return false;
+    const nav = this.game.world.nav;
+    let ex = e.pos.x, ez = e.pos.z, pit = false;
+    for (let t = 0.5; t <= dist; t += 0.5) {
+      const x = e.pos.x + dx * t, z = e.pos.z + dz * t;
+      const i = nav.ci(x), j = nav.cj(z);
+      if (!nav.inside(i, j)) break;
+      const k = nav.idx(i, j);
+      const b = nav.blocked[k];
+      const st = nav.struct[k];
+      if (b === 1 || b === 2 || b === 3 || (st && st.def.solid)) break; // hits rock / a wall
+      if (groundAt(x, z) > e.pos.y + 1.2) break; // a cliff face
+      ex = x; ez = z;
+      pit = b === PIT;
+      if (pit) break;
+    }
+    const d = Math.hypot(ex - e.pos.x, ez - e.pos.z);
+    if (d < 1.5) return false;
+    const sy = e.pos.y, ey = pit ? sy : groundAt(ex, ez);
+    e.leap = { sx: e.pos.x, sz: e.pos.z, sy, ex: pit ? ex + dx * 1.5 : ex, ez: pit ? ez + dz * 1.5 : ez, ey, t: 0, dur: 0.6 + d * 0.035, h: 2.2 + d * 0.18, fling: true, pit };
+    e.yaw = Math.atan2(dx, dz); // tumbling backwards
+    this.game.audio.leap(e.pos);
+    return true;
+  }
+
+  // fell into a chasm
+  fallDeath(e) {
+    const game = this.game;
+    if (e.dead) return;
+    e.hp = 0;
+    this.kill(e, { fell: true });
+    game.addCredits(Math.ceil(e.def.reward * 0.5)); // style bonus
+    game.fx.label(e.pos.x, e.pos.y + 1.5, e.pos.z, 'INTO THE ABYSS!', '#8aff5a');
+    game.net.event({ k: 'label', x: e.pos.x, y: e.pos.y + 1.5, z: e.pos.z, t: 'INTO THE ABYSS!', c: '#8aff5a' });
+  }
+
   updateLeap(e, dt) {
     const L = e.leap;
     L.t += dt / L.dur;
@@ -717,12 +758,25 @@ export class EnemyManager {
     e.pos.x = THREE.MathUtils.lerp(L.sx, L.ex, t);
     e.pos.z = THREE.MathUtils.lerp(L.sz, L.ez, t);
     e.pos.y = THREE.MathUtils.lerp(L.sy || 0, L.ey || 0, t) + Math.sin(Math.PI * t) * L.h;
+    if (t >= 1 && L.fling) {
+      // thrown by a Gravity Launcher
+      e.leap = null;
+      e.vel.set(0, 0, 0);
+      if (L.pit) { this.fallDeath(e); return; }
+      e.pos.y = groundAt(e.pos.x, e.pos.z);
+      e.rig.plantFeet();
+      this.game.fx.dust(e.pos.x, e.pos.z, 1.0);
+      e.shock = Math.max(e.shock, 0.5); // dazed for a moment
+      this.damage(e, 15, { showNumber: false });
+      this.game.world.nav.pushOut(e.pos, e.def.radius * 0.85, ROCK_CAP);
+      return;
+    }
     if (t >= 1) {
       e.pos.y = groundAt(e.pos.x, e.pos.z);
       e.leap = null;
       e.vel.multiplyScalar(0.2);
       e.rig.plantFeet();
-      this.game.fx.dust(e.pos.x, e.pos.z, 1.2);
+      this.game.fx.dust(e.pos.x, e.pos.z, 1.0);
       // damage players near the landing spot
       for (const p of this.game.players) {
         if (p.dead) continue;

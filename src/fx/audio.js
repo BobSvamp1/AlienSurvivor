@@ -404,6 +404,23 @@ export class Audio {
     if (this.throttle('flame', 0.12)) return;
     this.noise(0.22, { type: 'lowpass', freq: 900, vol: 0.35, pos });
   }
+  stab(pos) {
+    if (this.throttle('stab', 0.08)) return;
+    this.noise(0.06, { type: 'highpass', freq: 2500, vol: 0.3, pos });
+    this.tone(320, 90, 0.12, { type: 'square', vol: 0.12, pos, lp: 1800 });
+    this.play('flesh', { pos, vol: 0.6, rate: 0.9 });
+  }
+  launch(pos) {
+    if (this.throttle('launch', 0.1)) return;
+    this.tone(90, 40, 0.18, { type: 'sine', vol: 0.5, pos });
+    this.noise(0.35, { type: 'bandpass', freq: 700, q: 0.7, vol: 0.35, pos });
+    this.tone(400, 1400, 0.3, { type: 'triangle', vol: 0.08, pos, at: 0.02 });
+  }
+  laser(pos) {
+    if (this.throttle('laser', 0.07)) return;
+    this.tone(2400, 600, 0.16, { type: 'sawtooth', vol: 0.1, pos, lp: 5000 });
+    this.noise(0.1, { type: 'bandpass', freq: 5000, q: 4, vol: 0.12, pos });
+  }
   zap(pos, big = false) {
     if (this.throttle(big ? 'zapb' : 'zap', big ? 0.05 : 0.12)) return;
     this.noise(big ? 0.25 : 0.08, { type: 'bandpass', freq: big ? 3200 : 4500, q: 3, vol: big ? 0.45 : 0.15, pos });

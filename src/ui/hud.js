@@ -2,7 +2,7 @@ import { icon } from './icons.js';
 import { BUILDINGS, BUILD_ORDER } from '../data/buildings.js';
 
 const $ = (id) => document.getElementById(id);
-const SLOT_ICONS = { gun: 'rifle', barricade: 'barricade', gatling: 'gatling', flamer: 'flamer', tesla: 'tesla', mortar: 'mortar', trap: 'trap', generator: 'generator', shield: 'shield' };
+const SLOT_ICONS = { gun: 'rifle', barricade: 'barricade', gatling: 'gatling', flamer: 'flamer', tesla: 'tesla', mortar: 'mortar', trap: 'trap', generator: 'generator', shield: 'shield', spikes: 'spikes', goo: 'goo', vent: 'vent', launcher: 'launcher', laser: 'laser' };
 const RADAR_RANGE = 42;
 
 export class Hud {
@@ -34,7 +34,7 @@ export class Hud {
     this.el.hotbar.innerHTML = slots.map((m, i) => {
       const def = BUILDINGS[m];
       const pw = def && def.levels[0].power ? `<span class="pw">⚡${def.levels[0].power}</span>` : def && def.levels[0].supply ? `<span class="pw">+⚡${def.levels[0].supply}</span>` : '';
-      return `<div class="slot" data-mode="${m}"><span class="key">${i + 1}</span>${pw}${icon(SLOT_ICONS[m])}<span class="nm">${def ? def.short : 'Rifle'}</span>${def ? `<span class="cost">${def.cost}</span>` : '<span class="cost" style="color:var(--muted)">∞</span>'}</div>`;
+      return `<div class="slot" data-mode="${m}"><span class="key">${(i + 1) % 10}</span>${pw}${icon(SLOT_ICONS[m])}<span class="nm">${def ? def.short : 'Rifle'}</span>${def ? `<span class="cost">${def.cost}</span>` : '<span class="cost" style="color:var(--muted)">∞</span>'}</div>`;
     }).join('');
     this.slotEls = [...this.el.hotbar.children];
 
@@ -323,7 +323,8 @@ export class Hud {
     g.fillRect(0, 0, c.width, c.height);
     for (let j = 0; j < nav.rows; j++) for (let i = 0; i < nav.cols; i++) {
       const k = nav.idx(i, j);
-      if (nav.blocked[k] === 4) { g.fillStyle = 'rgba(20, 30, 45, 0.75)'; g.fillRect(i * px, j * px, px, px); } // cliff edge
+      if (nav.blocked[k] === 4 || nav.blocked[k] === 6) { g.fillStyle = 'rgba(20, 30, 45, 0.75)'; g.fillRect(i * px, j * px, px, px); } // cliff edge / unreachable high ground
+      else if (nav.blocked[k] === 5) { g.fillStyle = 'rgba(90, 255, 60, 0.35)'; g.fillRect(i * px, j * px, px, px); } // chasm
       else if (nav.blocked[k]) { g.fillStyle = 'rgba(190, 210, 235, 0.55)'; g.fillRect(i * px, j * px, px, px); }
       else if (nav.pool[k]) { g.fillStyle = 'rgba(150, 255, 60, 0.45)'; g.fillRect(i * px, j * px, px, px); }
       else if (nav.h[k] > 0.4) { g.fillStyle = `rgba(255, 240, 210, ${Math.min(0.28, nav.h[k] * 0.035)})`; g.fillRect(i * px, j * px, px, px); } // high ground

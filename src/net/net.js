@@ -343,6 +343,7 @@ export class Net {
     this.events = [];
     this.structDirty = true;
     this.lastUp = '';
+    this.lastNh = -1;
   }
 
   // spawn spot so players don't start inside each other
@@ -391,6 +392,7 @@ export class Net {
       t: 's', ph: g.phase, w: g.wave, pt: r2(g.phaseTimer), pT: g.phaseTotal, wt: g.waveTotal, rem: g.enemiesRemaining(),
       cr: g.credits, k: g.stats.kills, core: [Math.round(g.core.hp), g.core.maxHp],
       hv: g.world.hives.reduce((a, h, i) => a | (h.active ? 1 << i : 0), 0), pl, en, sh,
+      nh: (g.nextHives || []).reduce((a, i) => a | (1 << i), 0),
     };
     this.stT = (this.stT || 0) - 1 / SNAP_HZ;
     if (this.structDirty || this.stT <= 0) {
@@ -420,6 +422,11 @@ export class Net {
     core.hp = m.core[0];
     core.maxHp = m.core[1];
     g.world.hives.forEach((h, i) => (h.active = !!(m.hv & (1 << i))));
+    if (m.nh !== this.lastNh) {
+      this.lastNh = m.nh;
+      g.nextHives = g.world.hives.map((_, i) => i).filter((i) => m.nh & (1 << i));
+      g.world.paths.dirty = true;
+    }
     g.world.nightTarget = m.ph === 'wave' ? 1 : 0;
     for (const s of m.pl) {
       if (s[0] === this.myId) continue;
@@ -474,6 +481,7 @@ export class Net {
       case 'shock': g.fx.shockwave(e.x, e.z, e.r); g.audio.slam(_v.set(e.x, 0, e.z)); g.shake(1.2, _v); break;
       case 'boom': g.fx.explosion(_v.set(e.x, e.y, e.z), e.c || '#ffb43d', e.r); g.audio.explosion(_v, e.s || 1); break;
       case 'toast': g.hud.toast(e.m, e.kind); break;
+      case 'label': g.fx.label(e.x, e.y, e.z, e.t, e.c); break;
       case 'sound': if (g.audio[e.n]) g.audio[e.n](e.p ? _v.set(e.p[0], 0, e.p[1]) : undefined); break;
       default: break;
     }

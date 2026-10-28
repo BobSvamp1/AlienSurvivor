@@ -4,6 +4,67 @@
 
 export const MAPS = [
   {
+    id: 'outpost',
+    name: 'Kepler Outpost',
+    subtitle: 'The Stranded Crew',
+    description: 'Your wrecked outpost is cut into a rock mesa. Narrow corridors and bottomless chasms lead from three hives to the core. Block routes, fling aliens into the abyss and hold the overlook.',
+    difficulty: 2,
+    halfX: 52,
+    halfZ: 60,
+    core: [0, 37],
+    spawn: [0, 27],
+    hives: [[-40, -50], [0, -52], [40, -50]],
+    enemyBias: { leaper: 1.2, brute: 1.2, serpent: 1.2 },
+    theme: {
+      grade: { contrast: 1.16, saturation: 0.95, shadowTint: '#3a2a48', highlightTint: '#ffc090', split: 0.22, vignette: 0.5 },
+      atmosphere: { mist: 0.14 },
+      materials: { ground: 'ground_canyon', groundTint: '#e8e0d8', cliffTint: '#c88a70', cliffSide: 'cliff', rockTop: 'ground_canyon', rockSide: 'cliff', rockTint: '#c8846a', rockTopTint: '#ffffff' },
+      day: { top: '#3a5f96', horizon: '#ffa77a', bottom: '#a8603f', sun: '#ffd0a8', sunI: 3.0, hemi: 0.6, fog: '#d8906a' },
+      night: { top: '#0a0820', horizon: '#3a2448', bottom: '#1a1020', sun: '#ffb0a0', sunI: 1.5, hemi: 0.8, fog: '#251428' },
+      fogNear: 35, fogFar: 175,
+      ground: ['#8c5a40', '#6e4630', '#a87050'],
+      cliff: '#6a3a28',
+      rock: '#7a4a34',
+      obstacleStyle: 'mesa',
+      prop: 'crystal',
+      propColor: '#3de0ff',
+      particles: 'dust',
+      planet: { color: '#cfe4ff', ring: true, pos: [200, 130, -280], size: 44 },
+      sunDir: [0.45, 0.6, -0.5],
+      exposure: 1.0,
+      cliffHeight: 1.6,
+    },
+    elevation(e) {
+      e.base(7); // solid rock mesa; everything below is cut into it
+      // overlook ledge beside the main corridor, reached by a ramp from the core
+      e.rect(-14, 4, -4, 22, 3, { rough: 0.3 });
+      e.ramp(-10, 31, -10, 20, 4, 0, 3);
+      // chasms next to the corridors: fling aliens in with a Launch Pad
+      e.rect(4, 2, 14, 14, -7, { rough: 0.4 });
+      e.rect(-14, -44, -4, -32, -7, { rough: 0.4 });
+      e.rect(-36, -36, -27, -24, -7, { rough: 0.4 });
+      e.rect(27, -36, 36, -24, -7, { rough: 0.4 });
+      const C = (x1, z1, x2, z2, w = 8) => e.ramp(x1, z1, x2, z2, w, 0, 0);
+      // hive tunnels
+      C(-40, -54, -40, -10); C(40, -54, 40, -10); C(0, -56, 0, -10);
+      // the crossroads and the cross corridor
+      C(-44, -10, 44, -10);
+      e.rect(-8, -16, 8, -4, 0, { rough: 0.2 });
+      // main corridor to the core
+      C(0, -10, 0, 30);
+      // long bypasses along the outer walls
+      C(-40, -10, -40, 34); C(-44, 34, -6, 34);
+      C(40, -10, 40, 34); C(44, 34, 6, 34);
+      // chambers
+      e.circle(0, 37, 12, 0, { rough: 0.6 });
+      for (const [x, z] of [[-40, -50], [0, -52], [40, -50]]) e.circle(x, z, 8, 0, { rough: 0.8 });
+    },
+    layout(b, rng) {
+      // a little rubble in the hive chambers
+      for (const [x, z] of [[-46, -46], [6, -58], [46, -46]]) b.rock(x + (rng() - 0.5) * 2, z + (rng() - 0.5) * 2, 1.1 + rng() * 0.5);
+    },
+  },
+  {
     id: 'crash',
     name: 'Crash Site',
     subtitle: 'Wreck of the Odyssey',

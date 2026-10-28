@@ -184,14 +184,24 @@ function startWave() {
   game.spawnTimer = 2;
   game.waveExtra = 0;
   const hives = game.world.hives;
-  const n = Math.min(hives.length, 1 + Math.floor((game.wave - 1) / 2));
-  const order = hives.map((_, i) => i).sort(() => Math.random() - 0.5);
-  game.activeHives = order.slice(0, n);
+  // the hives were picked in advance, so their paths could be shown while building
+  game.activeHives = game.nextHives && game.nextHives.length ? game.nextHives : [0];
+  const n = game.activeHives.length;
   hives.forEach((h, i) => (h.active = game.activeHives.includes(i)));
   game.world.nightTarget = 1;
   const info = { k: 'wave', w: game.wave, boss: plan.boss, n, total: game.waveTotal, theme: plan.themeName, intro: plan.intro };
   game.net.event(info);
   game.showWaveStart(info);
+}
+
+// which hives open on the next wave (shown as paths during the build phase)
+function chooseNextHives() {
+  const hives = game.world.hives;
+  const w = game.wave + 1;
+  const n = Math.min(hives.length, 1 + Math.floor((w - 1) / 2));
+  const order = hives.map((_, i) => i).sort(() => Math.random() - 0.5);
+  game.nextHives = order.slice(0, n);
+  if (game.world.paths) game.world.paths.dirty = true;
 }
 
 // wave announcement (also shown on co-op clients when the host starts a wave)
@@ -217,6 +227,7 @@ function endWave() {
   game.addCredits(bonus);
   game.world.nightTarget = 0;
   game.world.hives.forEach((h) => (h.active = false));
+  chooseNextHives();
   const info = { k: 'clear', w: game.wave, bonus };
   game.net.event(info);
   game.showWaveCleared(info);
@@ -318,6 +329,7 @@ game.startGame = (mapId, difficulty, opts = {}) => {
     game.stats = { kills: 0, damage: 0, built: 0, deaths: 0 };
     game.phase = 'build';
     game.phaseTimer = game.phaseTotal = FIRST_BUILD_TIME;
+    chooseNextHives();
     game.spawnQueue = [];
     game.inGame = true;
     game.over = false;
@@ -328,7 +340,7 @@ game.startGame = (mapId, difficulty, opts = {}) => {
     game.audio.setCombat(false);
     game.hud.show(true);
     game.hud.setDead(false);
-    game.hud.message('PREPARE DEFENSES', 'Build with keys 2–9 before night falls · turrets need ⚡ power', { kicker: game.world.map.name.toUpperCase(), dur: 4.5 });
+    game.hud.message('PREPARE DEFENSES', 'Red arrows show where the swarm will walk · build traps on their path (keys 2–0)', { kicker: game.world.map.name.toUpperCase(), dur: 4.5 });
     if (game.net.active) {
       game.net.beginSession();
       if (game.net.isHost) game.net.broadcast(game.net.startMsg());
@@ -453,7 +465,8 @@ game.onKey = (code) => {
   if (!game.running) return;
   const p = game.player;
   if (p.dead) return;
-  const n = parseInt(code.replace('Digit', ''), 10);
+  let n = parseInt(code.replace('Digit', ''), 10);
+  if (n === 0) n = 10; // key 0 is the 10th slot
   if (code.startsWith('Digit') && n >= 1 && n <= MODES.length) {
     game.build.setMode(MODES[n - 1]);
     if (n > 1) game.audio.click();

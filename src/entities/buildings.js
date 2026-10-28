@@ -4,6 +4,7 @@ import { CELL } from '../world/nav.js';
 import { pbr } from '../core/materials.js';
 import { cableGeometry, cableEnergyTexture } from '../world/clutter.js';
 import { groundAt, elevation } from '../world/elevation.js';
+import { CLIFF, PIT, VOID } from '../world/nav.js';
 
 const REACH = 15;
 const TRIM = ['#3de0ff', '#ffb43d', '#ff4d6d'];
@@ -46,6 +47,11 @@ function mats() {
     pilot: new THREE.MeshStandardMaterial({ color: '#7ab8ff', emissive: '#3d8aff', emissiveIntensity: 3 }),
     pad: new THREE.MeshStandardMaterial({ color: '#2a8cff', emissive: '#2a8cff', emissiveIntensity: 0.8, roughness: 0.2 }),
     shell: new THREE.MeshStandardMaterial({ color: '#30343c', emissive: '#ff6a1d', emissiveIntensity: 0.6 }),
+    spike: new THREE.MeshStandardMaterial({ color: '#c8d4e0', metalness: 0.9, roughness: 0.25, emissive: '#3de0ff', emissiveIntensity: 0.25 }),
+    goo: new THREE.MeshStandardMaterial({ color: '#4dbb1a', emissive: '#3a9a10', emissiveIntensity: 0.55, roughness: 0.05, metalness: 0.1, transparent: true, opacity: 0.92 }),
+    ember: new THREE.MeshStandardMaterial({ color: '#ff7a2a', emissive: '#ff5a10', emissiveIntensity: 2.2 }),
+    laserRed: new THREE.MeshStandardMaterial({ color: '#ff3d5a', emissive: '#ff2a4a', emissiveIntensity: 3 }),
+    launchPad: new THREE.MeshStandardMaterial({ color: '#8a5cff', emissive: '#6a3dff', emissiveIntensity: 1.2, roughness: 0.3 }),
   };
   return M;
 }
@@ -277,6 +283,79 @@ export function buildModel(type, level) {
     g.add(field);
     P.field = field;
     P.fieldU = u;
+  } else if (type === 'spikes') {
+    // floor plate with a bed of spikes that stab up
+    part(g, box(1.9, 0.1, 1.9), m.dark, 0, 0.05, 0, false);
+    part(g, box(1.95, 0.06, 0.12), m.hazard, 0, 0.08, -0.92, false);
+    part(g, box(1.95, 0.06, 0.12), m.hazard, 0, 0.08, 0.92, false);
+    const bed = new THREE.Group();
+    g.add(bed);
+    const n = 4 + level;
+    const coneGeo = new THREE.ConeGeometry(0.07 + level * 0.01, 0.6, 6);
+    for (let i = 0; i < n; i++) for (let j = 0; j < n; j++) {
+      const x = -0.7 + (1.4 * i) / (n - 1), z = -0.7 + (1.4 * j) / (n - 1);
+      part(bed, coneGeo, m.spike, x, 0.3, z, false);
+      part(bed, new THREE.CylinderGeometry(0.09, 0.09, 0.04, 6), m.dark, x, 0.08, z, false);
+    }
+    bed.position.y = -0.42;
+    P.bed = bed;
+    part(g, new THREE.TorusGeometry(0.98, 0.025, 4, 4).rotateX(Math.PI / 2).rotateY(Math.PI / 4), trim, 0, 0.11, 0, false);
+  } else if (type === 'goo') {
+    // a sticky green puddle with bubbles
+    const sh = new THREE.Shape();
+    for (let k = 0; k <= 24; k++) {
+      const a = (k / 24) * Math.PI * 2;
+      const r = 0.9 + Math.sin(a * 3 + 1) * 0.08 + Math.sin(a * 5) * 0.05;
+      if (k === 0) sh.moveTo(Math.cos(a) * r, Math.sin(a) * r); else sh.lineTo(Math.cos(a) * r, Math.sin(a) * r);
+    }
+    const puddle = part(g, new THREE.ExtrudeGeometry(sh, { depth: 0.06, bevelEnabled: true, bevelThickness: 0.04, bevelSize: 0.08, bevelSegments: 3 }).rotateX(-Math.PI / 2), m.goo, 0, 0.02, 0, false);
+    puddle.receiveShadow = true;
+    P.bubbles = [];
+    for (let k = 0; k < 5 + level * 2; k++) {
+      const b = part(g, new THREE.SphereGeometry(0.06 + Math.random() * 0.06, 8, 6), m.goo, (Math.random() - 0.5) * 1.3, 0.12, (Math.random() - 0.5) * 1.3, false);
+      P.bubbles.push({ m: b, ph: Math.random() * 6 });
+    }
+    if (level >= 2) part(g, new THREE.TorusGeometry(0.95, 0.03, 4, 24).rotateX(Math.PI / 2), trim, 0, 0.1, 0, false);
+  } else if (type === 'vent') {
+    // floor grate with glowing burner slots
+    part(g, box(1.9, 0.14, 1.9), m.dark, 0, 0.07, 0, false);
+    for (let k = -2; k <= 2; k++) {
+      part(g, box(1.4, 0.04, 0.12), m.ember, 0, 0.13, k * 0.28, false);
+      part(g, box(1.5, 0.08, 0.08), m.metal, 0, 0.16, k * 0.28 + 0.14, false);
+    }
+    for (const [x, z] of [[-0.85, -0.85], [0.85, -0.85], [-0.85, 0.85], [0.85, 0.85]]) part(g, cyl(0.1, 0.12, 0.25, 8), m.hazard, x, 0.15, z, false);
+    part(g, new THREE.TorusGeometry(0.98, 0.025, 4, 4).rotateX(Math.PI / 2).rotateY(Math.PI / 4), trim, 0, 0.16, 0, false);
+    P.emberMat = m.ember;
+  } else if (type === 'launcher') {
+    // base plate with a hinged pad that slams up; the arrow shows the throw direction (-Z)
+    part(g, box(1.9, 0.12, 1.9), m.dark, 0, 0.06, 0, false);
+    const hinge = new THREE.Group();
+    hinge.position.set(0, 0.14, 0.8);
+    g.add(hinge);
+    part(hinge, box(1.5, 0.1, 1.55), m.launchPad, 0, 0.05, -0.78, false);
+    const arrow = new THREE.Shape();
+    arrow.moveTo(0, -0.55); arrow.lineTo(0.35, -0.1); arrow.lineTo(0.13, -0.1); arrow.lineTo(0.13, 0.45); arrow.lineTo(-0.13, 0.45); arrow.lineTo(-0.13, -0.1); arrow.lineTo(-0.35, -0.1); arrow.closePath();
+    const ar = part(hinge, new THREE.ShapeGeometry(arrow).rotateX(-Math.PI / 2), trim, 0, 0.105, -0.78, false);
+    ar.renderOrder = 2;
+    for (const x of [-0.6, 0.6]) part(g, cyl(0.06, 0.06, 0.5, 8).rotateX(Math.PI / 2), m.metal, x, 0.2, 0.55, false);
+    P.hinge = hinge;
+  } else if (type === 'laser') {
+    // wall-mounted emitter; it is moved against the wall when placed and fires along -Z
+    const mount = new THREE.Group();
+    mount.position.z = 0.82;
+    g.add(mount);
+    part(mount, box(1.3, 1.6, 0.28), m.dark, 0, 1.0, 0.04);
+    part(mount, box(1.1, 0.12, 0.3), m.hazard, 0, 0.2, 0.0, false);
+    for (const y of [0.55, 1.0, 1.45]) {
+      part(mount, cyl(0.12, 0.14, 0.24, 12).rotateX(Math.PI / 2), m.metal, 0, y, -0.18, false);
+      part(mount, new THREE.CircleGeometry(0.08, 12), m.laserRed, 0, y, -0.305, false);
+    }
+    part(mount, box(0.08, 1.5, 0.08), trim, 0.62, 1.0, -0.12, false);
+    part(mount, box(0.08, 1.5, 0.08), trim, -0.62, 1.0, -0.12, false);
+    P.mount = mount;
+    P.muzzles.push(new THREE.Object3D());
+    P.muzzles[0].position.set(0, 1.0, -0.35);
+    mount.add(P.muzzles[0]);
   } else if (type === 'trap') {
     part(g, box(1.9, 0.12, 1.9), m.dark, 0, 0.06, 0, false);
     const padMat = m.pad.clone();
@@ -473,6 +552,7 @@ export class BuildSystem {
     if (nav.blocked[k]) return 'Blocked';
     if (nav.struct[k]) return 'Occupied';
     if (nav.pool[k]) return 'Cannot build in acid';
+    if (def.wall && this.wallRotation(i, j) === null) return 'Must be placed against a wall or cliff';
     if (game.world.elev.span(x, z, 0.9) > 0.8) return 'Too steep';
     if (Math.hypot(x - game.core.pos.x, z - game.core.pos.z) < game.core.radius + 1.8) return 'Too close to the core';
     for (const h of game.world.hives) if (Math.hypot(x - h.pos.x, z - h.pos.z) < 7) return 'Too close to a hive';
@@ -522,6 +602,42 @@ export class BuildSystem {
 
   powerFree() { return this.powerCap - this.powerUsed; }
 
+  // wall traps: which way the wall is from cell (i, j), as a rotation step (null = no wall)
+  wallRotation(i, j) {
+    const nav = this.nav;
+    const isWall = (a, b) => {
+      if (!nav.inside(a, b)) return true;
+      const k = nav.idx(a, b);
+      const bl = nav.blocked[k];
+      if (bl === 1 || bl === 2 || bl === CLIFF || bl === VOID) return true;
+      const st = nav.struct[k];
+      return !!(st && st.def.solid);
+    };
+    // prefer a wall whose opposite side is open (a corridor to shoot across)
+    let best = null, bestOpen = -1;
+    for (const [di, dj] of [[0, 1], [1, 0], [0, -1], [-1, 0]]) {
+      if (!isWall(i + di, j + dj)) continue;
+      let open = 0;
+      while (open < 8 && !isWall(i - di * (open + 1), j - dj * (open + 1))) open++;
+      if (open > bestOpen) { bestOpen = open; best = [di, dj]; }
+    }
+    if (!best) return null;
+    // the model's back (+Z) goes against the wall
+    const a = Math.atan2(best[0], best[1]);
+    return ((Math.round(a / ROT_ANGLE) % ROT_STEPS) + ROT_STEPS) % ROT_STEPS;
+  }
+
+  // ground aliens standing on a trap's cell
+  enemiesOn(s, pad = 0) {
+    const out = [];
+    for (const e of this.game.enemies.list) {
+      if (e.dead || e.hidden || e.def.flying || e.leap) continue;
+      const r = 1 + pad + e.def.radius * 0.4;
+      if (Math.abs(e.pos.x - s.x) < r && Math.abs(e.pos.z - s.z) < r && Math.abs(e.pos.y - s.y) < 1.6) out.push(e);
+    }
+    return out;
+  }
+
   tryPlace() {
     const game = this.game;
     const t = this.target;
@@ -531,14 +647,15 @@ export class BuildSystem {
     if (game.credits < cost) { game.audio.error(); game.hud.toast('Not enough crystals', 'warn'); return; }
     const need = this.powerOf(this.mode, 0);
     if (need > this.powerFree()) { game.audio.error(); game.hud.toast(`Needs ${need} ⚡ power. Build a Generator!`, 'warn'); return; }
+    const rot = BUILDINGS[this.mode].wall ? this.wallRotation(t.i, t.j) : this.rotation;
     if (game.net.isClient) {
       // co-op: ask the host to build it (shared crystals)
-      game.net.request({ a: 'build', type: this.mode, i: t.i, j: t.j, rot: this.rotation });
+      game.net.request({ a: 'build', type: this.mode, i: t.i, j: t.j, rot });
       game.audio.click();
       return;
     }
     game.credits -= cost;
-    const s = this.place(this.mode, t.i, t.j, this.rotation);
+    const s = this.place(this.mode, t.i, t.j, rot);
     s.invested = cost;
     game.stats.built++;
     game.audio.build(s.group.position);
@@ -585,6 +702,7 @@ export class BuildSystem {
   afterChange() {
     const game = this.game;
     game.net.structDirty = true;
+    if (game.world && game.world.paths) game.world.paths.dirty = true;
     this.rebuildLists();
     this.updatePower();
     const c = game.core;
@@ -795,7 +913,7 @@ export class BuildSystem {
         ghost.visible = true;
         const gy = elevation().minAt(x, z, 0.9);
         ghost.position.set(x, gy + 0.02, z);
-        ghost.rotation.y = this.rotation * ROT_ANGLE;
+        ghost.rotation.y = (def.wall ? this.wallRotation(this.target.i, this.target.j) ?? 0 : this.rotation) * ROT_ANGLE;
         const ok = this.target.valid && game.credits >= this.cost(this.mode);
         this.ghostMat.color.set(ok ? 0x3dff8a : 0xff3d5a);
         this.ghostMat.opacity = 0.32 + Math.sin(game.time * 6) * 0.08;
@@ -841,6 +959,11 @@ export class BuildSystem {
       else if (s.type === 'tesla') this.updateTesla(s, dt);
       else if (s.type === 'mortar') this.updateMortar(s, dt);
       else if (s.type === 'trap') this.updateTrap(s, dt);
+      else if (s.type === 'spikes') this.updateSpikes(s, dt);
+      else if (s.type === 'goo') this.updateGoo(s, dt);
+      else if (s.type === 'vent') this.updateVent(s, dt);
+      else if (s.type === 'launcher') this.updateLauncher(s, dt);
+      else if (s.type === 'laser') this.updateLaser(s, dt);
       if (s.type === 'shield') this.updateShield(s, dt);
 
       if (s.bar) {
@@ -1105,6 +1228,137 @@ export class BuildSystem {
       const d = Math.hypot(e.pos.x - x, e.pos.z - z);
       if (d < radius + e.def.radius) game.enemies.damage(e, dmg * (1 - (d / (radius + e.def.radius)) * 0.6), { explosive: true });
     }
+  }
+
+  // ------------------------------------------------------------ traps
+  updateSpikes(s, dt) {
+    const game = this.game;
+    const lv = s.def.levels[s.level];
+    s.cd -= dt;
+    s.stab = Math.max(0, (s.stab || 0) - dt * 2.2);
+    if (s.parts.bed) s.parts.bed.position.y = -0.42 + Math.min(1, s.stab * 2.5) * 0.5;
+    if (s.cd > 0) return;
+    const on = this.enemiesOn(s);
+    if (!on.length) return;
+    s.cd = 1 / lv.rate;
+    s.stab = 1;
+    for (const e of on) {
+      game.enemies.damage(e, lv.dmg * game.mods.turretDmg, { showNumber: true });
+      game.fx.burst(_v.set(e.pos.x, e.pos.y + 0.4, e.pos.z), e.def.colors.blood, 5, 3, 0.08);
+    }
+    game.audio.stab(_v.set(s.x, s.y, s.z));
+  }
+
+  updateGoo(s, dt) {
+    const game = this.game;
+    const lv = s.def.levels[s.level];
+    if (s.parts.bubbles) for (const b of s.parts.bubbles) {
+      const k = (game.time * 0.6 + b.ph) % 1;
+      b.m.position.y = 0.08 + k * 0.08;
+      b.m.scale.setScalar(k < 0.9 ? 0.6 + k * 0.6 : 0.01);
+    }
+    for (const e of this.enemiesOn(s, -0.1)) {
+      e.slow = 0.3;
+      e.slowF = Math.min(e.slowF || 1, lv.slow);
+      e.oiled = 5; // fuel for a Flame Vent combo
+      if (lv.acid) game.enemies.damage(e, lv.acid * dt, { showNumber: false });
+    }
+  }
+
+  updateVent(s, dt) {
+    const game = this.game;
+    const lv = s.def.levels[s.level];
+    s.cd -= dt;
+    s.heat = Math.max(0, (s.heat || 0) - dt * 1.5);
+    s.parts.emberMat.emissiveIntensity = 1.6 + Math.sin(game.time * 9 + s.x) * 0.3;
+    if (s.heat > 0) for (let k = 0; k < 6; k++) game.fx.fire(_v.set(s.x + (Math.random() - 0.5) * 1.6, s.y + 0.3 + Math.random() * 1.6 * s.heat, s.z + (Math.random() - 0.5) * 1.6));
+    if (s.cd > 0) return;
+    if (!this.enemiesOn(s).length) return;
+    s.cd = 1 / lv.rate;
+    s.heat = 1;
+    game.audio.flame(_v.set(s.x, s.y, s.z));
+    let ignited = false;
+    for (const e of [...game.enemies.list]) {
+      if (e.dead || e.hidden || e.def.flying) continue;
+      const d = Math.hypot(e.pos.x - s.x, e.pos.z - s.z);
+      if (d > lv.radius + e.def.radius * 0.5 || Math.abs(e.pos.y - s.y) > 2) continue;
+      if (e.oiled > 0) {
+        // COMBO: goo-covered aliens go up in flames and set their neighbours alight
+        e.oiled = 0;
+        ignited = true;
+        game.enemies.damage(e, lv.dmg * 2.5 * game.mods.turretDmg, { showNumber: true, explosive: true });
+        e.burn = 4; e.burnDps = lv.burn * 2;
+        for (const o of game.enemies.list) {
+          if (o === e || o.dead || o.def.flying) continue;
+          if (Math.hypot(o.pos.x - e.pos.x, o.pos.z - e.pos.z) < 2.2) { game.enemies.damage(o, lv.dmg * game.mods.turretDmg, { showNumber: false }); o.burn = 3; o.burnDps = lv.burn * 1.5; }
+        }
+        game.fx.explosion(_w.set(e.pos.x, e.pos.y + 0.8, e.pos.z), '#ff8a2a', 2.2);
+      } else {
+        game.enemies.damage(e, lv.dmg * game.mods.turretDmg, { showNumber: true });
+        e.burn = 3; e.burnDps = lv.burn;
+      }
+    }
+    if (ignited && !game.net.isClient) {
+      game.fx.label(s.x, s.y + 2.2, s.z, 'IGNITE!', '#ff9a3d');
+      game.net.event({ k: 'label', x: s.x, y: s.y + 2.2, z: s.z, t: 'IGNITE!', c: '#ff9a3d' });
+      game.audio.explosion(_v.set(s.x, s.y, s.z), 0.5);
+    }
+  }
+
+  updateLauncher(s, dt) {
+    const game = this.game;
+    const lv = s.def.levels[s.level];
+    s.cd -= dt;
+    s.flip = Math.max(0, (s.flip || 0) - dt * 3);
+    if (s.parts.hinge) s.parts.hinge.rotation.x = Math.sin(Math.min(1, s.flip) * Math.PI) * 0.9;
+    if (s.cd > 0) return;
+    const heavy = (e) => e.def.boss || ((e.type === 'brute' || e.type === 'bulwark') && !lv.heavy);
+    const on = this.enemiesOn(s, -0.15).filter((e) => !heavy(e));
+    if (!on.length) return;
+    s.cd = 1 / lv.rate;
+    s.flip = 1;
+    const dx = -Math.sin(s.baseYaw), dz = -Math.cos(s.baseYaw);
+    if (!game.net.isClient) for (const e of on) game.enemies.fling(e, dx, dz, lv.dist);
+    game.audio.launch(_v.set(s.x, s.y, s.z));
+    game.fx.burst(_v.set(s.x, s.y + 0.3, s.z), '#8a5cff', 12, 5, 0.1);
+  }
+
+  updateLaser(s, dt) {
+    const game = this.game;
+    const lv = s.def.levels[s.level];
+    s.cd -= dt;
+    if (s.cd > 0) return;
+    const dx = -Math.sin(s.baseYaw), dz = -Math.cos(s.baseYaw);
+    // the beam runs from the wall across the corridor until it hits something solid
+    const nav = this.nav;
+    const sx = s.x + Math.sin(s.baseYaw) * 0.6, sz = s.z + Math.cos(s.baseYaw) * 0.6;
+    let len = 0.5;
+    while (len < lv.range) {
+      const x = sx + dx * len, z = sz + dz * len;
+      const i = nav.ci(x), j = nav.cj(z);
+      if (!nav.inside(i, j)) break;
+      const b = nav.blocked[nav.idx(i, j)];
+      if (b === 1 || b === 2 || b === VOID) break;
+      if (groundAt(x, z) > s.y + 1.4) break;
+      len += 0.5;
+    }
+    const hits = [];
+    for (const e of game.enemies.list) {
+      if (e.dead || e.hidden) continue;
+      if (e.def.flying && e.pos.y - s.y > 3) continue;
+      const rx = e.pos.x - sx, rz = e.pos.z - sz;
+      const along = rx * dx + rz * dz;
+      if (along < 0 || along > len) continue;
+      const side = Math.abs(-rx * dz + rz * dx);
+      if (side < 0.7 + e.def.radius * 0.6 && Math.abs(e.pos.y - s.y) < 2.6) hits.push(e);
+    }
+    if (!hits.length) return;
+    s.cd = 1 / lv.rate;
+    for (const e of hits) game.enemies.damage(e, lv.dmg * game.mods.turretDmg, { showNumber: true });
+    const y = s.y + 1.0;
+    game.fx.tracer(_v.set(sx, y, sz), _w.set(sx + dx * len, y, sz + dz * len), '#ff3d5a', 0.09, 0.12);
+    game.fx.flash(_v.set(sx, y, sz), '#ff3d5a', 6, 0.08);
+    game.audio.laser(_v);
   }
 
   updateTrap(s, dt) {

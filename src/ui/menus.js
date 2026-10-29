@@ -1,5 +1,5 @@
 import { icon } from './icons.js';
-import { MAPS, DIFFICULTIES } from '../data/maps.js';
+import { MAPS, DIFFICULTIES, unlocked } from '../data/maps.js';
 import { ENEMIES, ENEMY_ORDER } from '../data/enemies.js';
 import { BUILDINGS } from '../data/buildings.js';
 import { UPGRADES, UPGRADE_TABS } from '../data/upgrades.js';
@@ -176,7 +176,11 @@ export class Menus {
         <div class="mc-meta"><span class="mc-diff">${m.waves || 20} WAVES · ${['', 'EASY', 'MEDIUM', 'HARD'][m.difficulty]}</span><span class="mc-best"></span></div>`;
       card.appendChild(body);
       this.drawPreview(c, m);
+      const lock = document.createElement('div');
+      lock.className = 'mc-lock';
+      card.appendChild(lock);
       card.addEventListener('click', () => {
+        if (!this.isOpen(m.id)) { this.game.audio.error?.(); return; }
         this.selectedMap = m.id;
         this.refreshMapCards();
         this.game.net.setLobbyMission(this.selectedMap, this.difficulty, this.endless);
@@ -184,7 +188,7 @@ export class Menus {
         this.game.audio.uiSelect();
         this.game.previewMap(m.id);
       });
-      card.addEventListener('dblclick', () => this.game.startGame(m.id, this.difficulty, { endless: this.endless }));
+      card.addEventListener('dblclick', () => { if (this.isOpen(m.id)) this.game.startGame(m.id, this.difficulty, { endless: this.endless }); });
       wrap.appendChild(card);
     }
   }
@@ -260,8 +264,17 @@ export class Menus {
     this.refreshHeroChips();
   }
 
+  isOpen(id) { return unlocked(id, (m) => bestStars(m), (m) => bestWave(m)); }
+
   refreshMapCards() {
+    if (!this.isOpen(this.selectedMap)) this.selectedMap = MAPS[0].id;
     for (const card of $('map-cards').children) {
+      const open = this.isOpen(card.dataset.id);
+      card.classList.toggle('locked', !open);
+      if (!open) {
+        const i = MAPS.findIndex((m) => m.id === card.dataset.id);
+        card.querySelector('.mc-lock').innerHTML = `<div class="ml-ico">${icon('lock')}</div><div class="ml-t">LOCKED</div><div class="ml-d">Win ${MAPS[i - 1].name} to unlock</div>`;
+      }
       card.classList.toggle('sel', card.dataset.id === this.selectedMap);
       const st = bestStars(card.dataset.id, this.difficulty);
       const b = bestWave(card.dataset.id);
@@ -574,7 +587,8 @@ export class Menus {
     $('over-kicker').classList.toggle('danger', !res.win);
     $('over-title').textContent = res.win ? 'VICTORY' : 'DEFEAT';
     $('over-stars').classList.toggle('hidden', !res.win);
-    if (res.win) $('over-stars').innerHTML = [1, 2, 3].map((k) => `<i class="${k <= res.stars ? 'on' : ''}" style="--d:${k * 0.25}s">★</i>`).join('') + `<div class="os-sub">Core at ${res.core}% · 3 stars need 90% left, 2 stars 50%</div>`;
+    if (res.win) $('over-stars').innerHTML = [1, 2, 3].map((k) => `<i class="${k <= res.stars ? 'on' : ''}" style="--d:${k * 0.25}s">★</i>`).join('') + `<div class="os-sub">Core at ${res.core}% · 3 stars need 90% left, 2 stars 50%</div>`
+      + (res.unlocked ? `<div class="os-unlock">${icon('lock')}NEW MAP UNLOCKED: <b>${res.unlocked.toUpperCase()}</b></div>` : '');
     const mins = Math.floor(stats.time / 60);
     const secs = Math.floor(stats.time % 60);
     const items = [

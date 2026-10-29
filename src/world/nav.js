@@ -58,6 +58,7 @@ export class NavGrid {
     const n = this.cols * this.rows;
     this.blocked = new Uint8Array(n); // 0 = free, 1 = rock, 2 = debris, 3 = clutter, 4 = cliff edge
     this.h = new Float32Array(n); // ground height of each cell
+    this.top = new Float32Array(n).fill(Infinity); // top of the obstacle in a blocked cell (players can fly over)
     this.pool = new Uint8Array(n);
     this.struct = new Array(n).fill(null);
     this.dist = new Float32Array(n).fill(Infinity);
@@ -263,7 +264,7 @@ export class NavGrid {
   // Push a circle out of rocks and solid buildings. Returns the building it touched, if any.
   // rockCap limits the radius used against rocks / clutter, so big aliens can squeeze
   // through narrow gaps (they still collide with buildings using their full size).
-  pushOut(pos, r, rockCap = Infinity, skip = null) {
+  pushOut(pos, r, rockCap = Infinity, skip = null, cellSkip = null) {
     let touched = null;
     const i0 = this.ci(pos.x - r) , i1 = this.ci(pos.x + r);
     const j0 = this.cj(pos.z - r), j1 = this.cj(pos.z + r);
@@ -274,6 +275,7 @@ export class NavGrid {
         s = this.struct[k];
         if ((!this.blocked[k] || SOFT(this.blocked[k])) && !(s && s.def.solid)) continue;
         if (skip && s && s.def.solid && !this.blocked[k] && skip(s)) continue; // e.g. a player flying over a wall
+        if (cellSkip && this.blocked[k] && !(s && s.def.solid) && cellSkip(k, this.blocked[k])) continue; // e.g. over a crate
       }
       const cx = this.cx(i), cz = this.cz(j);
       const nx = Math.max(cx - HALF, Math.min(pos.x, cx + HALF));

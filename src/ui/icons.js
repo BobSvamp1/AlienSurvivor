@@ -48,6 +48,7 @@ const P = {
   shield: '<path d="M4 20V6M20 20V6"/><path d="M4 8l16 0M4 12h16M4 16h16" stroke-dasharray="2 2"/><rect x="2" y="18" width="4" height="3"/><rect x="18" y="18" width="4" height="3"/>',
   generator: '<rect x="5" y="9" width="14" height="12" rx="1"/><path d="M12 2l-2 4h4l-2 4M8 14h8M8 17h8"/>',
   clock: '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',
+  lock: '<rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/>',
   spikes: '<rect x="2" y="17" width="20" height="4" rx="1"/><path d="M5 17l2-9 2 9M11 17l1-12 1 12M15 17l2-9 2 9"/>',
   goo: '<path d="M3 17c0-3 3-4 5-4s3-2 5-2 5 1 6 3 2 5-2 5H6c-2 0-3-1-3-2z"/><circle cx="9" cy="8" r="1.5"/><circle cx="15" cy="6" r="1"/>',
   vent: '<rect x="3" y="16" width="18" height="5" rx="1"/><path d="M8 14c-2-3 1-5 0-8 3 2 3 5 1 8M15 14c-2-3 1-6 0-10 3 3 4 7 1 10"/>',

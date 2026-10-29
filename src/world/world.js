@@ -55,6 +55,8 @@ function mergeVerts(g) {
 }
 
 // Natural-looking boulder: lumpy base shape + sharper ridges + a flat-ish bottom
+const _seen = new Set();
+
 export function rockGeometry(seed, detail = 3, squash = 0.85) {
   const g = mergeVerts(new THREE.IcosahedronGeometry(1, detail));
   const pos = g.attributes.position;
@@ -171,6 +173,12 @@ export class World {
     if (this.theme.cave) this.buildCave();
     this.buildProps();
     this.clutter = buildClutter(this, this.clutterPlan);
+    // how high the props in blocked cells reach (players can jump or fly over them)
+    for (let k = 0; k < this.nav.blocked.length; k++) {
+      const b = this.nav.blocked[k];
+      if (b === CLUTTER) this.nav.top[k] = this.nav.h[k] + 1.5;
+      else if (b === 2) this.nav.top[k] = this.nav.h[k] + 2.3;
+    }
     this.buildPools();
     this.buildPits();
     if (this.map.dressing) this.buildDressing();
@@ -226,6 +234,36 @@ export class World {
       if (!nav.blocked[k] && !isFinite(nav.dist[k])) { nav.blocked[k] = nav.h[k] > 1.5 ? VOID : 1; nav.pool[k] = 0; filled++; }
     }
     if (filled) nav.computeFlow(this.map.core[0], this.map.core[1], this.coreRadius);
+  }
+
+  // push a circle out of the rock colliders it is below the top of; returns the
+  // highest rock top under it that it stands on (or -Infinity)
+  pushRocks(pos, r, feet) {
+    const nav = this.nav;
+    let stand = -Infinity;
+    if (!this.colGrid) return stand;
+    const seen = _seen;
+    seen.clear();
+    const i0 = nav.ci(pos.x - r), i1 = nav.ci(pos.x + r), j0 = nav.cj(pos.z - r), j1 = nav.cj(pos.z + r);
+    for (let j = j0; j <= j1; j++) for (let i = i0; i <= i1; i++) {
+      const list = nav.inside(i, j) ? this.colGrid.get(nav.idx(i, j)) : null;
+      if (!list) continue;
+      for (const c of list) {
+        if (seen.has(c)) continue;
+        seen.add(c);
+        const dx = pos.x - c.x, dz = pos.z - c.z, d = Math.hypot(dx, dz);
+        if (feet >= c.top - 0.35) { // above it: stand on the top if over its middle
+          if (d < c.r * 0.75) stand = Math.max(stand, c.top);
+          continue;
+        }
+        const min = c.r + r;
+        if (d >= min) continue;
+        if (d < 1e-4) { pos.x += min; continue; }
+        pos.x = c.x + (dx / d) * min;
+        pos.z = c.z + (dz / d) * min;
+      }
+    }
+    return stand;
   }
 
   color(hex) { return new THREE.Color(hex); }
@@ -494,6 +532,22 @@ export class World {
 
     const rocks = [[], [], []];
     const rockColors = [[], [], []];
+    // round colliders that follow the rock shapes (the 2 m nav cells are much coarser):
+    // players can't walk into a boulder, but can jump or fly on top of it
+    const rockGeos = [0, 1, 2].map((v) => rockGeometry(v * 7 + 3, 3, style === 'mesa' ? 0.9 : 0.85));
+    const geoR = [], geoTop = [];
+    for (const g of rockGeos) {
+      const p = g.attributes.position;
+      let r = 0, top = 0;
+      for (let i = 0; i < p.count; i++) { r = Math.max(r, Math.hypot(p.getX(i), p.getZ(i))); top = Math.max(top, p.getY(i)); }
+      geoR.push(r); geoTop.push(top);
+    }
+    const colliders = (this.colliders = []);
+    const collide = (x, z, r, top) => colliders.push({ x, z, r, top: top + elev.at(x, z) });
+    const rockAt = (v, x, y, z, sx, sy, sz) => {
+      rocks[v].push(mk(x, y, z, sx, sy, sz));
+      collide(x, z, geoR[v] * Math.max(sx, sz) * 0.88, y + geoTop[v] * sy);
+    };
     const debris = [];
     const ribs = [];
     const glowBits = [];
@@ -522,7 +576,7 @@ export class World {
           }
           const v = (rng() * 3) | 0;
           const s = 0.5 + rng() * 0.5;
-          rocks[v].push(mk(lx, s * 0.2, lz, s, s * (0.6 + rng() * 0.5), s));
+          rockAt(v, lx, s * 0.2, lz, s, s * (0.6 + rng() * 0.5), s);
           rockColors[v].push(new THREE.Color().setScalar(0.75 + rng() * 0.3));
         }
         continue;
@@ -538,11 +592,13 @@ export class World {
         const v = (rng() * 3) | 0;
         const s = 1.35 + rng() * 0.45;
         const h = style === 'fungus' ? 0.9 + rng() * 0.6 : 1.0 + hn * 2.2 + rng() * 0.6;
-        rocks[v].push(mk(x, h * 0.25, z, s, h, s));
+        rockAt(v, x, h * 0.25, z, s, h, s);
         rockColors[v].push(new THREE.Color().setScalar(0.8 + rng() * 0.35));
         if (style === 'fungus' && rng() < 0.4) {
           const sh = 3 + rng() * 5;
-          stems.push(mk(x, sh / 2, z, 0.45 + rng() * 0.25, sh, 0.45 + rng() * 0.25, 0, (rng() - 0.5) * 0.2, (rng() - 0.5) * 0.2));
+          const sw = 0.45 + rng() * 0.25;
+          stems.push(mk(x, sh / 2, z, sw, sh, 0.45 + rng() * 0.25, 0, (rng() - 0.5) * 0.2, (rng() - 0.5) * 0.2));
+          collide(x, z, sw * 0.9, sh);
           const cr = 1.8 + rng() * 1.8;
           caps.push(mk(x, sh, z, cr, cr * 0.45, cr, rng() * 6));
           capGlow.push(mk(x, sh - 0.05, z, cr * 0.85, 0.1, cr * 0.85, 0));
@@ -551,16 +607,18 @@ export class World {
         const v = (rng() * 3) | 0;
         const s = 1.4 + rng() * 0.4;
         const h = 2.5 + hn * 6 + rng() * 2;
-        rocks[v].push(mk(x, h * 0.4, z, s, h, s));
+        rockAt(v, x, h * 0.4, z, s, h, s);
         rockColors[v].push(new THREE.Color().setScalar(0.8 + rng() * 0.35));
       } else if (style === 'ice') {
         const v = (rng() * 3) | 0;
-        rocks[v].push(mk(x, 0.2, z, 1.4, 0.7 + rng() * 0.5, 1.4));
+        rockAt(v, x, 0.2, z, 1.4, 0.7 + rng() * 0.5, 1.4);
         rockColors[v].push(new THREE.Color().setScalar(0.85 + rng() * 0.25));
         const n = 1 + ((rng() * 2.2) | 0);
         for (let s = 0; s < n; s++) {
           const h = 2 + hn * 5 + rng() * 3;
-          spires.push(mk(x + (rng() - 0.5) * 1.2, h / 2 - 0.3, z + (rng() - 0.5) * 1.2, 0.5 + rng() * 0.5, h, 0.5 + rng() * 0.5, rng() * 6, (rng() - 0.5) * 0.35, (rng() - 0.5) * 0.35));
+          const px = x + (rng() - 0.5) * 1.2, pz = z + (rng() - 0.5) * 1.2, sw = 0.5 + rng() * 0.5;
+          spires.push(mk(px, h / 2 - 0.3, pz, sw, h, 0.5 + rng() * 0.5, rng() * 6, (rng() - 0.5) * 0.35, (rng() - 0.5) * 0.35));
+          collide(px, pz, sw * 0.85, h - 0.3);
           spireColors.push(tint(t.rock, 0.85 + rng() * 0.3));
         }
       }
@@ -572,7 +630,18 @@ export class World {
       topTint: M.rockTopTint, sideTint: M.rockTint, normalStrength: 1.4,
     });
     for (let v = 0; v < 3; v++) {
-      this.instanced(rockGeometry(v * 7 + 3, 3, style === 'mesa' ? 0.9 : 0.85), rockMat, rocks[v], { colors: rockColors[v] });
+      this.instanced(rockGeos[v], rockMat, rocks[v], { colors: rockColors[v] });
+    }
+    // index the colliders by nav cell
+    this.colGrid = new Map();
+    for (const c of colliders) {
+      const i0 = nav.ci(c.x - c.r), i1 = nav.ci(c.x + c.r), j0 = nav.cj(c.z - c.r), j1 = nav.cj(c.z + c.r);
+      for (let j = j0; j <= j1; j++) for (let i = i0; i <= i1; i++) {
+        if (!nav.inside(i, j)) continue;
+        const k = nav.idx(i, j);
+        if (!this.colGrid.has(k)) this.colGrid.set(k, []);
+        this.colGrid.get(k).push(c);
+      }
     }
     if (debris.length) {
       const hull = pbr('rust', { color: '#b8b0a8' });

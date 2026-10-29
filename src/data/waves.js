@@ -126,8 +126,9 @@ export class WavePlanner {
     // bosses: every 5th wave, more of them deep into a run
     const bosses = [];
     if (opts.final) {
-      // the last wave of a mission: two bosses (the ones not seen yet come first)
-      bosses.push(this.nextBoss(), this.nextBoss());
+      // the last wave of a mission: two bosses (the ones not seen yet come first); the
+      // short starter missions end with just one
+      for (let i = 0; i < (opts.finalBosses ?? 2); i++) bosses.push(this.nextBoss());
       for (const b of bosses) list.splice(Math.floor(list.length * (0.3 + r() * 0.4)), 0, b);
     } else if (wave % 5 === 0) {
       const n = 1 + Math.floor(Math.max(0, wave - 15) / 10);

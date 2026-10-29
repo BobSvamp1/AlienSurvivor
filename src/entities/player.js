@@ -7,9 +7,10 @@ import { VOID } from '../world/nav.js';
 
 const EYE = 1.65;
 const RADIUS = 0.42;
+const RING = Array.from({ length: 8 }, (_, i) => [Math.cos((i / 8) * Math.PI * 2) * RADIUS, Math.sin((i / 8) * Math.PI * 2) * RADIUS]);
 const RESPAWN_TIME = 6;
 const JET_TIME = 2.6; // seconds of jetpack fuel
-const JET_CEIL = 3.2; // max hover height above the ground you took off from
+const JET_CEIL = 4.4; // max hover height above the ground you took off from
 const STEEP = 2.2; // ground steeper than this is a cliff face you slide off
 
 // steepness of the ground at (x, z)
@@ -286,6 +287,9 @@ export class Player {
     const canGo = (x, z) => {
       const g = groundAt(x, z);
       if (g > this.pos.y + CLIMB) return false;
+      // keep the whole body (not just its centre) off the cliff faces, so the camera
+      // never ends up inside a wall
+      for (const [rx, rz] of RING) if (groundAt(x + rx, z + rz) > this.pos.y + CLIMB + 0.15) return false;
       // places the swarm can never reach are off limits (tops of the rock walls)
       const i = nav.ci(x), j = nav.cj(z);
       if (nav.inside(i, j) && nav.blocked[nav.idx(i, j)] === VOID && g > this.lastGroundY + 1.2) return false;
@@ -297,11 +301,20 @@ export class Player {
     else { this.vel.x = 0; this.vel.z = 0; }
     this.pos.y += this.vel.y * dt;
     // buildings only block you while you're below their top: jetpack over walls, stand on low ones
+    // so do rocks and props: jump or fly over them, land on top of them
     const feet = this.pos.y;
-    game.resolveCircle(this.pos, RADIUS, (st) => feet >= game.build.topOf(st) - 0.3);
+    game.resolveCircle(this.pos, RADIUS, (st) => feet >= game.build.topOf(st) - 0.3, (k, b) => b === 1 || feet >= nav.top[k] - 0.3);
+    const rockTop = game.world.pushRocks(this.pos, RADIUS, feet);
     if (groundAt(this.pos.x, this.pos.z) > this.pos.y + CLIMB) { this.pos.x = ox; this.pos.z = oz; }
     const terrain = groundAt(this.pos.x, this.pos.z);
-    const standOn = game.build.standTop(this.pos.x, this.pos.z, RADIUS * 0.7, this.pos.y);
+    let standOn = Math.max(rockTop, game.build.standTop(this.pos.x, this.pos.z, RADIUS * 0.7, this.pos.y));
+    {
+      const i = nav.ci(this.pos.x), j = nav.cj(this.pos.z);
+      if (nav.inside(i, j)) {
+        const kk = nav.idx(i, j), t = nav.top[kk];
+        if ((nav.blocked[kk] === 2 || nav.blocked[kk] === 3) && feet >= t - 0.35) standOn = Math.max(standOn, t);
+      }
+    }
     const onStruct = standOn > terrain;
     const ground = onStruct ? standOn : terrain;
     if (this.pos.y <= ground) {

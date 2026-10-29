@@ -3,10 +3,10 @@ import './style.css';
 import { Renderer } from './core/renderer.js';
 import { installHeightFog } from './world/atmosphere.js';
 installHeightFog();
-import { loadSettings, saveRecord, bestWave, saveStars } from './core/settings.js';
+import { loadSettings, saveRecord, bestWave, saveStars, bestStars } from './core/settings.js';
 import { Upgrades } from './core/upgrades.js';
 import { computeMods } from './data/upgrades.js';
-import { getMap, DIFFICULTIES } from './data/maps.js';
+import { getMap, DIFFICULTIES, MAPS, unlocked } from './data/maps.js';
 import { WavePlanner } from './data/waves.js';
 import { ENEMIES, ENEMY_ORDER } from './data/enemies.js';
 
@@ -97,10 +97,11 @@ game.coopK = () => Math.max(0, game.players.length - 1);
 game.enemyMult = () => {
   const d = DIFFICULTIES[game.difficulty];
   const w = game.wave - 1;
+  const ease = (game.mapId && getMap(game.mapId).ease) || 1; // the starter maps are gentler
   // health keeps climbing, and from wave 12 the swarm also gets faster
   return {
-    hp: (1 + 0.12 * w + 0.007 * w * w) * d.hp * (1 + 0.1 * game.coopK()),
-    dmg: (1 + 0.05 * w) * d.dmg,
+    hp: (1 + 0.12 * w + 0.007 * w * w) * d.hp * (1 + 0.1 * game.coopK()) * ease,
+    dmg: (1 + 0.05 * w) * d.dmg * ease,
     spd: 1 + Math.min(0.45, Math.max(0, game.wave - 12) * 0.02),
   };
 };
@@ -133,8 +134,8 @@ game.shake = (amount, pos) => {
   game.shakeT = Math.min(1, game.shakeT + k);
 };
 
-game.resolveCircle = (pos, r, skip = null) => {
-  game.world.nav.pushOut(pos, r, Infinity, skip);
+game.resolveCircle = (pos, r, skip = null, cellSkip = null) => {
+  game.world.nav.pushOut(pos, r, Infinity, skip, cellSkip);
   const core = game.core;
   const dx = pos.x - core.pos.x, dz = pos.z - core.pos.z;
   const d = Math.hypot(dx, dz);
@@ -200,7 +201,7 @@ function startWave() {
   game.phase = 'wave';
   const d = DIFFICULTIES[game.difficulty];
   const final = !game.endless && game.wave === game.totalWaves;
-  const plan = game.planner.plan(game.wave, d.count * (1 + 0.3 * game.coopK()), { final });
+  const plan = game.planner.plan(game.wave, d.count * (1 + 0.3 * game.coopK()), { final, finalBosses: getMap(game.mapId).finalBosses });
   game.spawnQueue = plan.list;
   game.waveTotal = game.spawnQueue.length;
   game.spawnTimer = 2;
@@ -298,7 +299,7 @@ function updateWave(dt) {
       if (ENEMIES[type].boss) {
         const w = game.wave;
         mult.hp *= w <= 5 ? 0.5 : w <= 10 ? 0.45 : w <= 15 ? 0.5 : w <= 20 ? 0.62 : 0.8;
-        if (!game.endless && w === game.totalWaves) mult.hp *= 0.85; // the final wave has two of them
+        if (!game.endless && w === game.totalWaves && (getMap(game.mapId).finalBosses ?? 2) > 1) mult.hp *= 0.85; // the final wave has two of them
       }
       game.enemies.spawn(type, x, z, mult, true);
       game.fx.burst(new THREE.Vector3(x, h.pos.y + 1.5, z), '#b04dff', 6, 4, 0.12);
@@ -406,15 +407,21 @@ game.showVictory = (e) => {
   game.audio.cleared();
   game.world.nightTarget = 0;
   game.hud.message('VICTORY', `The outpost holds! ${'★'.repeat(e.stars)}${'☆'.repeat(3 - e.stars)}`, { kicker: 'MISSION COMPLETE', dur: 3 });
+  // winning a map opens the next one
+  const next = MAPS[MAPS.findIndex((m) => m.id === game.mapId) + 1];
+  const isOpen = (id) => unlocked(id, (m) => bestStars(m), (m) => bestWave(m));
+  const wasOpen = !next || game.endless || isOpen(next.id);
   const better = saveStars(game.mapId, game.difficulty, e.stars);
   saveRecord(game.mapId, game.difficulty, e.waves);
+  const newMap = !wasOpen && isOpen(next.id) ? next.name : null;
+  if (newMap) setTimeout(() => game.hud.toast(`New map unlocked: ${newMap}`, 'good'), 1800);
   const session = game.session;
   setTimeout(() => {
     if (!game.over || game.session !== session) return;
     if (document.pointerLockElement) document.exitPointerLock();
     game.hud.show(false);
     game.weapon.root.visible = false;
-    game.menus.showGameOver({ ...e.stats, waves: e.waves, time: e.time }, better, { win: true, stars: e.stars, core: e.core });
+    game.menus.showGameOver({ ...e.stats, waves: e.waves, time: e.time }, better, { win: true, stars: e.stars, core: e.core, unlocked: newMap });
   }, 3200);
 };
 

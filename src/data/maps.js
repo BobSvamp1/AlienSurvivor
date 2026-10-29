@@ -2,7 +2,121 @@
 // The layout marks grid cells (2x2 m) as blocked rocks/ice/trees or as acid pools.
 // Builder helpers: rock(x, z, r), line(x1, z1, x2, z2, width), clear(x, z, r), pool(x, z, r)
 
+// The maps are played in this order: each one unlocks the next (see unlocked()). The
+// first ones have a single route to the core, later ones more and more ways in.
 export const MAPS = [
+  {
+    id: 'landing',
+    name: 'Landing Zone',
+    subtitle: 'One Way In',
+    description: 'Your dropship came down at the end of a long, winding canyon. The swarm has only one way to the core: line the corridor with traps and hold it.',
+    difficulty: 1,
+    waves: 10,
+    finalBosses: 1,
+    ease: 0.8,
+    enemyBias: { wasp: 0.5, floater: 0.5, drone: 1.3 },
+    halfX: 34,
+    halfZ: 58,
+    core: [0, 40],
+    spawn: [0, 31],
+    hives: [[0, -46]],
+    tightClutter: true,
+    dressing: { light: '#ffe2b0', gateLight: '#ffb070' },
+    theme: {
+      grade: { contrast: 1.12, saturation: 1.0, shadowTint: '#3a2a48', highlightTint: '#ffd0a0', split: 0.2, vignette: 0.45 },
+      atmosphere: { mist: 0.12 },
+      materials: { ground: 'ground_canyon', groundTint: '#ece4dc', cliffTint: '#cc9478', cliffSide: 'cliff', rockTop: 'ground_canyon', rockSide: 'cliff', rockTint: '#c8846a', rockTopTint: '#ffffff' },
+      day: { top: '#3f6aa6', horizon: '#ffb488', bottom: '#a8603f', sun: '#ffdcb4', sunI: 3.1, hemi: 0.62, fog: '#dc9c74' },
+      night: { top: '#0a0820', horizon: '#3a2448', bottom: '#1a1020', sun: '#ffb0a0', sunI: 1.5, hemi: 0.8, fog: '#251428' },
+      fogNear: 35, fogFar: 175,
+      ground: ['#8c5a40', '#6e4630', '#a87050'],
+      cliff: '#6a3a28',
+      rock: '#7a4a34',
+      obstacleStyle: 'rock',
+      prop: 'crystal',
+      propColor: '#3de0ff',
+      particles: 'dust',
+      planet: { color: '#ffe0c8', ring: false, pos: [-180, 150, -300], size: 40 },
+      sunDir: [-0.4, 0.62, -0.45],
+      exposure: 1.0,
+      cliffHeight: 1.6,
+    },
+    elevation(e) {
+      e.base(7);
+      // the hive cave at the far end
+      e.poly([[-12, -57], [0, -60], [12, -56], [14, -46], [9, -37], [-9, -37], [-14, -46]], 0, { rough: 1.4 });
+      // one long switchback corridor
+      const C = (x1, z1, x2, z2, w = 7) => e.ramp(x1, z1, x2, z2, w, 0, 0);
+      C(0, -40, 0, -23);
+      C(-3.5, -26, 23.5, -26);
+      C(20, -29.5, 20, -2.5);
+      C(23.5, -6, -23.5, -6);
+      C(-20, -9.5, -20, 17.5);
+      C(-23.5, 14, 3.5, 14);
+      C(0, 10.5, 0, 31);
+      // the core yard
+      e.circle(0, 40, 11, 0, { rough: 0.6 });
+    },
+    layout(b, rng) {
+      for (const [x, z, r] of [[-6, -50, 1.3], [7, -52, 1.2]]) b.rock(x + (rng() - 0.5) * 0.5, z + (rng() - 0.5) * 0.5, r);
+    },
+  },
+  {
+    id: 'gorge',
+    name: 'Twin Gorge',
+    subtitle: 'Two Hives, Two Roads',
+    description: 'Two hives, two canyons and a crossing between them. The swarm splits up and can switch roads halfway: watch both sides.',
+    difficulty: 1,
+    waves: 12,
+    finalBosses: 1,
+    ease: 0.85,
+    enemyBias: { wasp: 0.6, floater: 0.6 },
+    halfX: 46,
+    halfZ: 58,
+    core: [0, 38],
+    spawn: [0, 29],
+    hives: [[-32, -46], [32, -46]],
+    tightClutter: true,
+    dressing: { light: '#ffd8a8', gateLight: '#ff9a60' },
+    theme: {
+      grade: { contrast: 1.15, saturation: 0.92, shadowTint: '#40283a', highlightTint: '#ffb880', split: 0.24, vignette: 0.5 },
+      atmosphere: { mist: 0.16 },
+      materials: { ground: 'ground_canyon', groundTint: '#e2d4c8', cliffTint: '#b8785e', cliffSide: 'cliff', rockTop: 'ground_canyon', rockSide: 'cliff', rockTint: '#b87a62', rockTopTint: '#ffffff' },
+      day: { top: '#4a5a8e', horizon: '#ff9a6a', bottom: '#9a5038', sun: '#ffc490', sunI: 2.8, hemi: 0.58, fog: '#cc8060' },
+      night: { top: '#0a0820', horizon: '#3a2448', bottom: '#1a1020', sun: '#ffb0a0', sunI: 1.5, hemi: 0.8, fog: '#251428' },
+      fogNear: 35, fogFar: 175,
+      ground: ['#8c5a40', '#6e4630', '#a87050'],
+      cliff: '#6a3a28',
+      rock: '#7a4a34',
+      obstacleStyle: 'rock',
+      prop: 'crystal',
+      propColor: '#3de0ff',
+      particles: 'dust',
+      planet: { color: '#cfe4ff', ring: true, pos: [240, 120, -240], size: 46 },
+      sunDir: [0.5, 0.45, -0.55],
+      exposure: 1.0,
+      cliffHeight: 1.6,
+    },
+    elevation(e) {
+      e.base(7);
+      // two hive caves
+      e.poly([[-44, -56], [-32, -60], [-20, -56], [-19, -45], [-24, -36], [-40, -36], [-45, -45]], 0, { rough: 1.4 });
+      e.poly([[44, -56], [32, -60], [20, -56], [19, -45], [24, -36], [40, -36], [45, -45]], 0, { rough: 1.4 });
+      const C = (x1, z1, x2, z2, w = 7) => e.ramp(x1, z1, x2, z2, w, 0, 0);
+      // the west and east canyons
+      C(-32, -39, -32, 20);
+      C(32, -39, 32, 20);
+      // the crossing halfway down, so the swarm can change sides
+      C(-35, -8, 35, -8, 6);
+      // into the core yard from both sides
+      C(-34, 18, -8, 36);
+      C(34, 18, 8, 36);
+      e.circle(0, 38, 12, 0, { rough: 0.6 });
+    },
+    layout(b, rng) {
+      for (const [x, z, r] of [[-36, -50, 1.3], [-27, -52, 1.1], [36, -50, 1.3], [27, -52, 1.1], [0, -8, 0.6]]) b.rock(x + (rng() - 0.5) * 0.5, z + (rng() - 0.5) * 0.5, r);
+    },
+  },
   {
     id: 'outpost',
     name: 'Kepler Outpost',
@@ -145,7 +259,7 @@ export const MAPS = [
     name: 'Frost Moon',
     subtitle: 'Outpost Glacier-7',
     description: 'A ring of ice spires guards the core, with four gaps the swarm will pour through. Hives wake in every corner.',
-    difficulty: 2,
+    difficulty: 3,
     waves: 20,
     halfX: 56,
     halfZ: 56,
@@ -192,6 +306,14 @@ export const DIFFICULTIES = {
   veteran: { name: 'Veteran', hp: 1.0, dmg: 1.0, credits: 350, count: 1.0, desc: 'The intended experience.' },
   nightmare: { name: 'Nightmare', hp: 1.35, dmg: 1.3, credits: 250, count: 1.25, desc: 'Tougher, larger swarms. Good luck.' },
 };
+
+// a map is open once the one before it has been won (on any difficulty), or once it
+// has been played already
+export function unlocked(id, bestStars, bestWave) {
+  const i = MAPS.findIndex((m) => m.id === id);
+  if (i <= 0) return true;
+  return bestStars(MAPS[i - 1].id) > 0 || bestStars(id) > 0 || bestWave(id) > 0;
+}
 
 export function getMap(id) {
   return MAPS.find((m) => m.id === id) || MAPS[0];

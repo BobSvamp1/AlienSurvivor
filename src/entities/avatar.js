@@ -164,6 +164,46 @@ const _ax = new THREE.Vector3(), _h1 = new THREE.Vector3(), _h2 = new THREE.Vect
 const _UP = new THREE.Vector3(0, 1, 0);
 const _m4 = new THREE.Matrix4();
 
+// where each wrist goes on the gun (gun space): right hand on the grip, left under the
+// handguard; the elbow hint is in avatar space (out, down, back)
+// the butt of the weapon relative to the neck bone (avatar space, before the aim pitch)
+const POCKET = [0.1, -0.2, -0.12];
+// the whole body turns a little to the right of the aim, left shoulder forwards
+const STANCE = -0.45;
+const HOLD = [['Right', 1, [0.035, -0.17, 0.15]], ['Left', -1, [-0.045, -0.09, -0.1]]];
+const _ikT = new THREE.Vector3(), _ikP = new THREE.Vector3();
+const _iS = new THREE.Vector3(), _iE = new THREE.Vector3(), _iW = new THREE.Vector3();
+const _iA = new THREE.Vector3(), _iB = new THREE.Vector3(), _iD = new THREE.Vector3(), _iN = new THREE.Vector3();
+const _iq = new THREE.Quaternion(), _ibw = new THREE.Quaternion(), _ipw = new THREE.Quaternion();
+
+// turn a bone (in world space) so that direction `from` becomes `to`
+function swing(bone, from, to) {
+  _iq.setFromUnitVectors(from, to);
+  bone.getWorldQuaternion(_ibw).premultiply(_iq);
+  bone.parent.getWorldQuaternion(_ipw).invert();
+  bone.quaternion.copy(_ipw.multiply(_ibw));
+  bone.updateMatrixWorld(true);
+}
+
+// two-bone IK: upper arm + forearm so the wrist reaches `target`, elbow towards `pole`
+function twoBoneIK(upper, lower, end, target, pole) {
+  upper.getWorldPosition(_iS);
+  lower.getWorldPosition(_iE);
+  end.getWorldPosition(_iW);
+  const a = _iS.distanceTo(_iE), b = _iE.distanceTo(_iW);
+  _iD.subVectors(target, _iS);
+  const d = THREE.MathUtils.clamp(_iD.length(), Math.abs(a - b) + 1e-3, a + b - 1e-3);
+  _iD.normalize();
+  const cosA = THREE.MathUtils.clamp((a * a + d * d - b * b) / (2 * a * d), -1, 1);
+  _iN.subVectors(pole, _iS).addScaledVector(_iD, -_iN.copy(pole).sub(_iS).dot(_iD)).normalize();
+  // new elbow: rotated off the shoulder-target line towards the pole
+  _iB.copy(_iD).multiplyScalar(cosA).addScaledVector(_iN, Math.sqrt(1 - cosA * cosA)).normalize();
+  swing(upper, _iA.subVectors(_iE, _iS).normalize(), _iB);
+  lower.getWorldPosition(_iE);
+  end.getWorldPosition(_iW);
+  swing(lower, _iA.subVectors(_iW, _iE).normalize(), _iB.subVectors(target, _iE).normalize());
+}
+
 // a point in the palm: from the wrist towards the knuckles (k = 1 at the knuckles);
 // rigs without finger bones carry on along the forearm
 function palm(B, side, k, out) {
@@ -213,7 +253,7 @@ export class Avatar {
     const S = cloneSkinned(this.cls);
     const M = this.M;
     const model = S.scene;
-    model.rotation.y = Math.PI; // the model faces +z, avatars face -z
+    model.rotation.y = Math.PI + STANCE; // the model faces +z, avatars face -z; bladed rifle stance
     this.root.add(model);
     this.skin = S;
     this.model = model;
@@ -235,10 +275,15 @@ export class Avatar {
     };
     // the weapon sits between the hands (placed every frame)
     const gun = new THREE.Group();
-    gun.scale.setScalar(1.15);
+    gun.scale.setScalar(0.74);
     this.root.add(gun);
     this.gun = gun;
-    this.buildGun(this.cls, M, add, gun);
+    // next to the realistic models the weapons use gunmetal and muted team paint
+    if (!M.gunArmor) {
+      M.gunArmor = wornMetal('#4c5157', { metalness: 0.75, roughness: 0.42, scratches: 0.4 });
+      M.gunPaint = new THREE.MeshStandardMaterial({ color: M.accent.color.clone().multiplyScalar(0.45), roughness: 0.55, metalness: 0.3, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 });
+    }
+    this.buildGun(this.cls, { ...M, armor: M.gunArmor, paint: M.gunPaint }, add, gun);
     mergeDirect(gun);
     // jetpack flames under the two thruster tubes on the back: anchors ride on the
     // spine, the flames themselves always blast straight down
@@ -787,28 +832,48 @@ export class Avatar {
       B.Head.getWorldQuaternion(_pw);
       _h3.copy(this.headFwd).applyQuaternion(_pw).applyQuaternion(_tq.copy(_rq).invert());
       const cur = Math.atan2(_h3.y, Math.hypot(_h3.x, _h3.z));
+      const yaw = Math.atan2(-_h3.x, -_h3.z); // 0 = straight ahead, + = turned left
       const d = THREE.MathUtils.clamp(pitch * 0.9 + 0.06 - cur, -0.9, 0.9) * alive;
+      const dy = THREE.MathUtils.clamp(-yaw, -0.9, 0.9) * alive;
+      _h3.set(0, 1, 0).applyQuaternion(_rq);
       for (const [b, frac] of [[B.Neck, 0.45], [B.Head, 0.55]]) {
         if (!b) continue;
         b.parent.getWorldQuaternion(_pw);
         _pq.setFromAxisAngle(_ax, d * frac);
+        _iq.setFromAxisAngle(_h3, dy * frac);
+        _pq.premultiply(_iq);
         _tq.copy(_pw).invert().multiply(_pq).multiply(_pw);
         b.quaternion.premultiply(_tq);
       }
     }
-    // weapon: grip in the right palm, barrel pointing through the left hand
+    // weapon: shouldered and pointing where the player aims; the arms reach for it (IK)
     g.visible = alive > 0.5;
     if (!g.visible) return;
-    const rh = palm(B, 'Right', 0.45, _h1);
-    const lh = palm(B, 'Left', 1, _h2);
-    this.root.worldToLocal(rh);
-    this.root.worldToLocal(lh);
-    _m4.lookAt(rh, lh, _UP);
-    g.quaternion.setFromRotationMatrix(_m4);
-    // the grip (gun space 0,-0.12,0.09) sits in the hand; recoil pushes back along the barrel
-    g.position.set(0, -0.1, 0.09 - this.kick * 0.05).multiplyScalar(g.scale.x).applyQuaternion(g.quaternion);
-    g.position.subVectors(rh, g.position);
+    const pa = pitch * alive;
+    // the right wrist stays where the clip holds it; the weapon points where the player aims
+    B.RightHand.getWorldPosition(_h1);
+    this.root.worldToLocal(_h1);
+    g.quaternion.setFromAxisAngle(_X, pa);
+    _h3.set(...HOLD[0][2]).multiplyScalar(g.scale.x).applyQuaternion(g.quaternion);
+    g.position.subVectors(_h1, _h3);
+    g.position.y += 0.03;
+    _h2.set(0, Math.sin(pa), -Math.cos(pa)); // aim direction (avatar space)
+    g.position.addScaledVector(_h2, -this.kick * 0.05);
+    g.updateMatrixWorld(true);
+    for (const [side, sx, grip] of HOLD) {
+      const up = B[side + 'Arm'], lo = B[side + 'ForeArm'], hand = B[side + 'Hand'];
+      if (!up || !lo || !hand) continue;
+      // short-armed rigs: the support hand slides back along the handguard until it reaches
+      const reach = 0.97 * (up.getWorldPosition(_iS).distanceTo(lo.getWorldPosition(_iE)) + _iE.distanceTo(hand.getWorldPosition(_iW)));
+      for (let k = 0; k < 6; k++) {
+        g.localToWorld(_ikT.set(grip[0], grip[1], grip[2] + (sx < 0 ? k * 0.05 : 0)));
+        if (_iS.distanceTo(_ikT) < reach) break;
+      }
+      _ikP.copy(_iS).add(_h3.set(sx * 0.35, -0.6, 0.25).applyQuaternion(_rq));
+      twoBoneIK(up, lo, hand, _ikT, _ikP);
+    }
   }
+
 
   // clip weights shared by both bodies: locomotion by move direction, idle, jump, death
   blend(P, C, dt, speed, dead) {

@@ -494,6 +494,11 @@ input[type='range']::-moz-range-thumb { width: 14px; height: 20px; background: v
 .hero-tile { position: relative; width: 132px; height: 96px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; color: var(--text); background: rgba(255, 255, 255, 0.06); border: 2px solid rgba(255, 255, 255, 0.12); transform: skewX(-10deg); transition: all 0.12s; }
 .hero-tile > * { transform: skewX(10deg); }
 .hero-tile .ht-ico { color: var(--hc); }
+.lobby-hero-row { display: flex; align-items: center; justify-content: space-between; gap: 18px; flex-wrap: wrap; }
+.lobby-heroes { display: flex; gap: 8px; }
+.hero-tile.small { width: 104px; height: 72px; }
+.hero-tile.small .ht-ico .ico, .hero-tile.small .ht-ico svg { width: 32px; height: 32px; }
+.hero-tile.small .ht-name { font-size: 21px; }
 .hero-tile .ht-ico .ico { width: 44px; height: 44px; }
 .hero-tile .ht-name { font-family: var(--display); font-size: 26px; letter-spacing: 2px; line-height: 0.9; }
 .hero-tile:hover { background: rgba(255, 255, 255, 0.12); border-color: var(--hc); }

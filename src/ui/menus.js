@@ -204,6 +204,21 @@ export class Menus {
       const el = $(id);
       if (el) el.innerHTML = html(big);
     }
+    // co-op lobby: pick a hero right there
+    const lh = $('lobby-heroes');
+    if (lh) {
+      lh.innerHTML = '';
+      for (const cid of CLASS_ORDER) {
+        const k = CLASSES[cid];
+        const b = document.createElement('button');
+        b.className = 'hero-tile small' + (cid === this.game.cls ? ' sel' : '');
+        b.style.setProperty('--hc', k.color);
+        b.title = `${k.name}: ${WEAPONS[k.weapon].name} · ${ABILITIES[cid].name} · ${k.perk}`;
+        b.innerHTML = `<span class="ht-ico">${icon(WICON[k.weapon])}</span><span class="ht-name">${k.name.toUpperCase()}</span>`;
+        b.addEventListener('click', () => this.pickClass(cid));
+        lh.appendChild(b);
+      }
+    }
   }
 
   renderHeroes() {

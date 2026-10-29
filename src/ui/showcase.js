@@ -52,17 +52,33 @@ export class Showcase {
     const [cx, cz] = w.map.core;
     const [sx, sz] = w.map.spawn;
     const base = Math.atan2(sx - cx, sz - cz);
-    const free = (x, z, h0, tol) => {
+    const free = (x, z, h0, tol, coreCheck = false) => {
       const i = nav.ci(x), j = nav.cj(z);
       if (!nav.inside(i, j) || nav.blocked[nav.idx(i, j)] || nav.struct[nav.idx(i, j)]) return false;
+      if (coreCheck && Math.hypot(x - cx, z - cz) < 5) return false; // the camera must not sit in the core
       return Math.abs(groundAt(x, z) - h0) < tol;
     };
     const p = new THREE.Vector3(), q = new THREE.Vector3(), d = new THREE.Vector3();
+    // candidates: first spots in front of the core, then any open floor nearby in any direction
+    const cands = [];
     for (const da of [0, 0.4, -0.4, 0.8, -0.8, 1.2, -1.2, 1.6, -1.6, 2.2, -2.2, Math.PI]) {
       for (const dist of [10, 8, 12, 6.5]) {
         const dir = base + da;
+        cands.push([cx + Math.sin(dir) * dist, cz + Math.cos(dir) * dist, dir]);
+      }
+    }
+    const far = [];
+    for (let j = 0; j < nav.rows; j++) for (let i = 0; i < nav.cols; i++) {
+      const x = nav.cx(i), z = nav.cz(j);
+      const dd = Math.hypot(x - cx, z - cz);
+      if (dd < 6 || dd > 40 || nav.blocked[nav.idx(i, j)]) continue;
+      far.push([x, z, dd]);
+    }
+    far.sort((a, b2) => a[2] - b2[2]);
+    for (const [x, z] of far) for (let k = 0; k < 8; k++) cands.push([x, z, (k / 8) * Math.PI * 2]);
+    for (const [ax, az, dir] of cands) {
+      {
         const sin = Math.sin(dir), cos = Math.cos(dir);
-        const ax = cx + sin * dist, az = cz + cos * dist;
         const h0 = groundAt(ax, az);
         const tw = (x, z, out) => out.set(ax + x * cos + z * sin, 0, az - x * sin + z * cos);
         let ok = true;
@@ -72,10 +88,12 @@ export class Showcase {
         }
         if (!ok) continue;
         // the whole stage (squad + camera) must be open ground: no rocks, crates or sandbags
-        for (let x = -1.6; x <= 4.6 && ok; x += 0.9) {
-          for (let z = -2.6; z <= 7.2; z += 0.9) {
+        for (let z = -1.8; z <= 7.0 && ok; z += 0.8) {
+          // around the squad the stage is wide, towards the camera a corridor is enough
+          const x0 = z > 2.5 ? -1.0 : -1.2, x1 = z > 2.5 ? 2.2 : 4.4;
+          for (let x = x0; x <= x1; x += 0.8) {
             tw(x, z, q);
-            if (!free(q.x, q.z, h0, 0.5)) { ok = false; break; }
+            if (!free(q.x, q.z, h0, 0.5, z > 1)) { ok = false; break; }
           }
         }
         if (!ok) continue;

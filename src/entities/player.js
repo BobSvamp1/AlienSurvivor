@@ -1,4 +1,7 @@
 import * as THREE from 'three';
+import { Avatar } from './avatar.js';
+import { CLASSES } from '../data/classes.js';
+import { saveSettings } from '../core/settings.js';
 import { groundAt, CLIMB } from '../world/elevation.js';
 import { VOID } from '../world/nav.js';
 
@@ -18,6 +21,10 @@ function slopeAt(x, z, out) {
 }
 const _g = { x: 0, z: 0 };
 
+const _h = new THREE.Vector3();
+const _f = new THREE.Vector3();
+const _o = new THREE.Vector3();
+const _ray = new THREE.Raycaster();
 export class Player {
   constructor(game) {
     this.game = game;
@@ -65,6 +72,41 @@ export class Player {
     window.addEventListener('blur', () => this.clearInput());
   }
 
+  // ------------------------------------------------------------ third person (V)
+  toggleView() {
+    this.thirdPerson = !this.thirdPerson;
+    this.game.settings.thirdPerson = this.thirdPerson;
+    saveSettings(this.game.settings);
+    this.game.hud.toast(this.thirdPerson ? 'Third person view' : 'First person view');
+  }
+
+  // our own body, seen in third person
+  updateAvatar(dt) {
+    const game = this.game;
+    const want = this.thirdPerson && game.running;
+    if (want && (!this.avatar || this.avatar.cls !== game.cls)) {
+      if (this.avatar) this.avatar.dispose();
+      const c = CLASSES[game.cls] || CLASSES.marine;
+      this.avatar = new Avatar(game.r.scene, 'You', c.color, game.cls);
+    }
+    if (!this.avatar) return;
+    this.avatar.root.visible = want;
+    if (!want) return;
+    this.avatar.update(dt, this.pos, this.yaw, this.pitch, this.speedNow, this.dead);
+    this.avatar.tag.visible = false;
+  }
+
+  // where aim rays start: the camera, or (third person) level with the player
+  aimOrigin(out) {
+    const cam = this.game.r.camera;
+    cam.getWorldPosition(out);
+    if (this.thirdPerson && !this.dead) {
+      cam.getWorldDirection(_f);
+      out.addScaledVector(_f, this.tpDist || 0);
+    }
+    return out;
+  }
+
   clearInput() {
     this.keys.clear();
     this.mouse.left = this.mouse.right = false;
@@ -105,6 +147,32 @@ export class Player {
 
   faceTowards(x, z) {
     this.yaw = Math.atan2(-(x - this.pos.x), -(z - this.pos.z));
+  }
+
+  // over-the-shoulder camera: behind and right of the head, pulled in when something
+  // (a cliff, rock or wall) is in the way
+  placeThirdPersonCam(cam, shake, dt) {
+    const game = this.game;
+    const ads = this.adsT;
+    _h.set(this.pos.x, this.pos.y + 1.62 - this.landKick * 0.1, this.pos.z);
+    _o.set(0.8 + 0.12 * ads, 0.2 + 0.04 * ads, 2.8 - 1.2 * ads).applyQuaternion(cam.quaternion);
+    const len = _o.length();
+    _o.divideScalar(len);
+    let d = len;
+    const gd = game.world.rayGround(_h, _o, len + 0.4);
+    if (gd < d + 0.3) d = gd - 0.3;
+    _ray.set(_h, _o);
+    _ray.far = d + 0.3;
+    const hit = _ray.intersectObjects(game.world.raycastables.concat(game.build.solidMeshes), false)[0];
+    if (hit && hit.distance - 0.3 < d) d = hit.distance - 0.3;
+    d = Math.max(0.25, d);
+    // ease back out after being pushed in, snap in when blocked
+    this.tpCur = d < (this.tpCur ?? d) ? d : (this.tpCur ?? d) + (d - (this.tpCur ?? d)) * Math.min(1, dt * 6);
+    cam.position.copy(_h).addScaledVector(_o, this.tpCur);
+    cam.position.x += shake.x; cam.position.y += shake.y; cam.position.z += shake.z;
+    // shots start from where the player stands, not from behind them
+    _f.set(0, 0, -1).applyQuaternion(cam.quaternion);
+    this.tpDist = Math.max(0, -_o.dot(_f) * this.tpCur) + 0.4;
   }
 
   chest(out = new THREE.Vector3()) {
@@ -303,7 +371,9 @@ export class Player {
     const shake = game.shakeOffset;
     cam.position.set(this.pos.x + shake.x, this.pos.y + 1.65 + this.bob - this.landKick * 0.18 + shake.y, this.pos.z + shake.z);
     const roll = Math.sin(this.bobT * 0.5) * 0.004 * bobAmt - (s * 0.012);
-    cam.rotation.set(this.pitch + shake.p, this.yaw + shake.q, roll, 'YXZ');
+    cam.rotation.set(this.pitch + shake.p, this.yaw + shake.q, this.thirdPerson ? 0 : roll, 'YXZ');
+    this.tpDist = 0;
+    if (this.thirdPerson) this.placeThirdPersonCam(cam, shake, dt);
     const base = game.settings.fov;
     const targetFov = this.ads ? base * 0.68 : this.sprinting ? base + 7 : base;
     if (Math.abs(cam.fov - targetFov) > 0.05) {

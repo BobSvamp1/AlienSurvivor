@@ -744,7 +744,7 @@ export class Weapon {
     if (key !== this.shownAmmo) { this.shownAmmo = key; this.drawAmmo(); }
     const building = game.build.mode !== null;
     this.cooldown -= dt;
-    this.root.visible = game.running;
+    this.root.visible = game.running && !p.thirdPerson;
 
     if (this.reloading > 0) {
       this.reloading -= dt;
@@ -833,7 +833,16 @@ export class Weapon {
     this.spread = THREE.MathUtils.lerp(this.spread, (0.004 + moving * 0.014 + (p.onGround ? 0 : 0.03)) * (1 - ads * 0.85), Math.min(1, dt * 10));
   }
 
+  // where shots and flames come out: the view model, or the body in third person
+  muzzleAt(out) {
+    const p = this.game.player;
+    if (p.thirdPerson && p.avatar) return p.avatar.muzzleWorld(out);
+    return this.muzzle.getWorldPosition(out);
+  }
+
   fire() {
+    const p = this.game.player;
+    if (p.thirdPerson && p.avatar) p.avatar.fire();
     if (this.kind === 'shotgun') return this.fireShotgun();
     if (this.kind === 'flamer') return this.fireFlamer();
     if (this.kind === 'railgun') return this.fireRailgun();
@@ -865,7 +874,7 @@ export class Weapon {
   aimRay(spread) {
     const game = this.game;
     const cam = game.r.camera;
-    cam.getWorldPosition(_origin);
+    game.player.aimOrigin(_origin);
     cam.getWorldDirection(_dir);
     _dir.x += (Math.random() - 0.5) * spread * 2;
     _dir.y += (Math.random() - 0.5) * spread * 2;
@@ -910,7 +919,7 @@ export class Weapon {
     this.recoilRot += 0.16;
     const spread = this.def.spread * (1 - p.adsT * 0.35) + this.spread;
     const per = new Map();
-    this.muzzle.getWorldPosition(_muzzle);
+    this.muzzleAt(_muzzle);
     let center = null;
     for (let k = 0; k < this.def.pellets; k++) {
       const { hits, gd } = this.aimRay(k === 0 ? this.spread : spread);
@@ -947,9 +956,9 @@ export class Weapon {
     this.ammo--;
     this.cooldown = 1 / st.rate;
     const cam = game.r.camera;
-    cam.getWorldPosition(_origin);
+    game.player.aimOrigin(_origin);
     cam.getWorldDirection(_dir);
-    this.muzzle.getWorldPosition(_muzzle);
+    this.muzzleAt(_muzzle);
     const range = this.def.range;
     const cosCone = Math.cos(this.def.cone);
     const dmg = st.damage / st.rate;
@@ -996,7 +1005,7 @@ export class Weapon {
       this.hitEnemy(e, h.point, st.damage * (head ? st.crit : 1) * (1 - done.size * 0.06), head);
     }
     _end.copy(_origin).addScaledVector(_dir, stop);
-    this.muzzle.getWorldPosition(_muzzle);
+    this.muzzleAt(_muzzle);
     game.fx.tracer(_muzzle, _end, '#7ad8ff', 0.09, 0.28);
     game.fx.tracer(_muzzle, _end, '#ffffff', 0.025, 0.18);
     game.fx.flash(_muzzle, '#7ad8ff', 9, 0.1);
@@ -1045,7 +1054,7 @@ export class Weapon {
     this.recoilRot += 0.07 * (1 - ads * 0.5);
 
     const cam = game.r.camera;
-    cam.getWorldPosition(_origin);
+    game.player.aimOrigin(_origin);
     cam.getWorldDirection(_dir);
     const sp = this.spread + Math.min(this.shotsFired, 12) * 0.0007 * (1 - ads);
     _dir.x += (Math.random() - 0.5) * sp * 2;
@@ -1081,7 +1090,7 @@ export class Weapon {
       if (!hit.object.userData.structure) game.fx.smoke(hit.point, 1);
     }
 
-    this.muzzle.getWorldPosition(_muzzle);
+    this.muzzleAt(_muzzle);
     game.net.shot(_origin, _end, 'rifle');
     game.fx.tracer(_muzzle, _end, '#fff0b0', 0.02, 0.05);
     game.fx.flash(_muzzle, '#ffb15a', 4, 0.05);

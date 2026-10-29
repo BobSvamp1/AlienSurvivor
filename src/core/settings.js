@@ -13,6 +13,7 @@ export const DEFAULT_SETTINGS = {
   invertY: false,
   screenShake: true,
   cls: 'marine', // chosen class
+  thirdPerson: false, // V toggles an over-the-shoulder camera
 };
 
 function safeRead(key) {

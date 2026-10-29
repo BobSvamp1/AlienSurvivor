@@ -72,6 +72,7 @@ game.fx = new Effects(game);
 game.build = new BuildSystem(game);
 game.enemies = new EnemyManager(game);
 game.player = new Player(game);
+game.player.thirdPerson = !!game.settings.thirdPerson;
 game.players = [game.player]; // ready for co-op: more players go here
 game.weapon = new Weapon(game);
 game.hud = new Hud(game);
@@ -542,6 +543,7 @@ game.onKey = (code) => {
     if (n > 1) game.audio.click();
   }
   if (code === 'KeyQ') game.abilities.use(); // class special ability
+  if (code === 'KeyV') p.toggleView(); // first / third person
   if (code === 'KeyR') {
     if (game.build.mode) game.build.rotate();
     else game.weapon.startReload();
@@ -618,6 +620,7 @@ function step(dt) {
     game.time += dt;
     updateShake(dt);
     game.player.update(dt);
+    game.player.updateAvatar(dt);
     game.weapon.update(dt);
     game.abilities.update(dt);
     game.build.update(dt);

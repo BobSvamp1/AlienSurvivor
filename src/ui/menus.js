@@ -398,6 +398,7 @@ export class Menus {
         <div><span class="k">${K('X')}</span>Sell aimed building</div>
         <div><span class="k">${K('B')}</span>Armory (between waves)</div>
         <div><span class="k">${K('G')}</span>Start the next wave now</div>
+        <div><span class="k">${K('V')}</span>First / third person view</div>
         <div><span class="k">${K('Esc')}</span>Pause</div>
       </div>
       <div class="tips">

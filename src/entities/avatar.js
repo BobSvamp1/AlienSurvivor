@@ -655,14 +655,17 @@ export class Avatar {
     const sum = wf + wb + wl + wr || 1;
     wf /= sum; wb /= sum; wl /= sum; wr /= sum;
     const cyc = (clip, w) => { const c = clip || C.walk; P.add(c, this.phase * clipDuration(c), true, w * mv * alive); };
-    cyc(C.walk, wf); cyc(C.back, wb); cyc(C.strafe_l, wl); cyc(C.strafe_r, wr);
+    // forwards: walk blends into a run with speed
+    const wRun = C.run ? THREE.MathUtils.clamp((speed - 3) / 2.5, 0, 1) : 0;
+    cyc(C.walk, wf * (1 - wRun)); cyc(C.run, wf * wRun);
+    cyc(C.back, wb); cyc(C.strafe_l, wl); cyc(C.strafe_r, wr);
     P.add(C.idle, this.t, true, (1 - mv) * (1 - this.airT) * alive);
     // in the air: hold a frame of the jump (tucked going up, reaching down when falling)
     if (C.jump) P.add(C.jump, (this.vy > 0.5 ? 0.32 : 0.5) * clipDuration(C.jump), false, this.airT * alive);
     if (wDead) P.add(C.death, this.deadT, false, wDead);
     P.finish();
     // longer strides when running fast
-    const k = 1 + 0.55 * THREE.MathUtils.clamp((speed - 3) / 6, 0, 1) * mv;
+    const k = 1 + (C.run ? 0.25 * (1 - wf) : 0.55) * THREE.MathUtils.clamp((speed - 3) / 6, 0, 1) * mv;
     const L = 0.93;
     this.hips.quaternion.copy(P.q.hips);
     this.hips.position.set(P.hx * L, 0.96 + P.hy * L, P.hz * L);

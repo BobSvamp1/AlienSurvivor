@@ -263,7 +263,7 @@ export class NavGrid {
   // Push a circle out of rocks and solid buildings. Returns the building it touched, if any.
   // rockCap limits the radius used against rocks / clutter, so big aliens can squeeze
   // through narrow gaps (they still collide with buildings using their full size).
-  pushOut(pos, r, rockCap = Infinity) {
+  pushOut(pos, r, rockCap = Infinity, skip = null) {
     let touched = null;
     const i0 = this.ci(pos.x - r) , i1 = this.ci(pos.x + r);
     const j0 = this.cj(pos.z - r), j1 = this.cj(pos.z + r);
@@ -273,6 +273,7 @@ export class NavGrid {
         const k = this.idx(i, j);
         s = this.struct[k];
         if ((!this.blocked[k] || SOFT(this.blocked[k])) && !(s && s.def.solid)) continue;
+        if (skip && s && s.def.solid && !this.blocked[k] && skip(s)) continue; // e.g. a player flying over a wall
       }
       const cx = this.cx(i), cz = this.cz(j);
       const nx = Math.max(cx - HALF, Math.min(pos.x, cx + HALF));

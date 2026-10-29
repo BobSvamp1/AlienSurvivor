@@ -228,9 +228,14 @@ export class Player {
     else if (canGo(ox, nz)) { this.pos.z = nz; this.vel.x = 0; }
     else { this.vel.x = 0; this.vel.z = 0; }
     this.pos.y += this.vel.y * dt;
-    game.resolveCircle(this.pos, RADIUS);
+    // buildings only block you while you're below their top: jetpack over walls, stand on low ones
+    const feet = this.pos.y;
+    game.resolveCircle(this.pos, RADIUS, (st) => feet >= game.build.topOf(st) - 0.3);
     if (groundAt(this.pos.x, this.pos.z) > this.pos.y + CLIMB) { this.pos.x = ox; this.pos.z = oz; }
-    const ground = groundAt(this.pos.x, this.pos.z);
+    const terrain = groundAt(this.pos.x, this.pos.z);
+    const standOn = game.build.standTop(this.pos.x, this.pos.z, RADIUS * 0.7, this.pos.y);
+    const onStruct = standOn > terrain;
+    const ground = onStruct ? standOn : terrain;
     if (this.pos.y <= ground) {
       if (!this.onGround && this.vel.y < -6) { this.landKick = Math.min(1, -this.vel.y / 14); game.audio.footstep(); }
       this.pos.y = ground;
@@ -245,7 +250,7 @@ export class Player {
     }
     // a cliff face is too steep to stand on: slide down it (no jumping up walls)
     this.sliding = false;
-    if (this.onGround && slopeAt(this.pos.x, this.pos.z, _g) > STEEP) {
+    if (this.onGround && !onStruct && slopeAt(this.pos.x, this.pos.z, _g) > STEEP) {
       const l = Math.hypot(_g.x, _g.z) || 1;
       this.pos.x -= (_g.x / l) * 7 * dt;
       this.pos.z -= (_g.z / l) * 7 * dt;
@@ -255,7 +260,7 @@ export class Player {
       this.onGround = false;
     }
     if (this.onGround) {
-      this.lastGroundY = this.pos.y;
+      this.lastGroundY = onStruct ? terrain : this.pos.y; // the jetpack ceiling counts from the real ground
       this.fuelDelay -= dt;
       if (this.fuelDelay <= 0) this.fuel = Math.min(1, this.fuel + dt * 0.55);
       // remember a safe spot the swarm can reach too

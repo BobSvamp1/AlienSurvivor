@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { mergeStatic } from '../core/geomerge.js';
 import { wornMetal } from '../core/materials.js';
-import { WEAPONS } from '../data/classes.js';
+import { WEAPONS, CLASSES } from '../data/classes.js';
 
 const _dir = new THREE.Vector3();
 const _origin = new THREE.Vector3();
@@ -107,6 +107,12 @@ function scopeLabelTexture() {
 const HIP = new THREE.Vector3(0.19, -0.19, -0.34);
 const ADS = new THREE.Vector3(0, -0.1143, -0.15); // puts the scope axis (y 0.127 × scale 0.9) in the screen centre
 
+const _UP = new THREE.Vector3(0, 1, 0);
+const _hq = new THREE.Quaternion();
+const _hd = new THREE.Vector3();
+// where the right hand holds every gun: the pistol grip
+const GRIP = { kind: 'grip', c: [0.0, -0.078, 0.09], R: 0.022 };
+
 export class Weapon {
   constructor(game) {
     this.game = game;
@@ -131,8 +137,11 @@ export class Weapon {
       glow: new THREE.MeshStandardMaterial({ color: '#3de0ff', emissive: '#3de0ff', emissiveIntensity: 1.1 }),
       cable: new THREE.MeshStandardMaterial({ color: '#1a6a80', emissive: '#3de0ff', emissiveIntensity: 0.55, roughness: 0.4 }),
       orange: wornMetal('#e8742e', { metalness: 0.2, roughness: 0.55 }),
-      glove: new THREE.MeshStandardMaterial({ color: '#1b1e24', roughness: 0.75 }),
-      sleeve: new THREE.MeshStandardMaterial({ color: '#34434e', roughness: 0.85 }),
+      glove: new THREE.MeshStandardMaterial({ color: '#23262c', roughness: 0.72, metalness: 0.05 }),
+      knuckle: wornMetal('#3a3f47', { metalness: 0.6, roughness: 0.5, scratches: 0.3 }),
+      sleeve: new THREE.MeshStandardMaterial({ color: '#2e3a42', roughness: 0.9 }),
+      armor: wornMetal('#4a525c', { metalness: 0.55, roughness: 0.5, scratches: 0.35 }),
+      accent: new THREE.MeshStandardMaterial({ color: '#ffb43d', roughness: 0.45, metalness: 0.2 }),
       glass: new THREE.MeshStandardMaterial({ color: '#3de0ff', transparent: true, opacity: 0.1, roughness: 0, metalness: 0.5, depthWrite: false }),
       dot: new THREE.MeshBasicMaterial({ color: '#ff3d3d', toneMapped: false }),
       rubber: new THREE.MeshStandardMaterial({ color: '#141518', roughness: 0.95, metalness: 0 }),
@@ -329,19 +338,8 @@ export class Weapon {
     box(0.04, 0.012, 0.064, M.dark, 0, -0.123, 0.01, this.mag);
     this.magHome = this.mag.position.clone();
 
-    // gloved hands and sleeves
-    const rh = box(0.062, 0.055, 0.085, M.glove, 0.004, -0.085, 0.085);
-    rh.rotation.x = 0.35;
-    const lh = box(0.08, 0.05, 0.1, M.glove, -0.012, -0.045, -0.3);
-    lh.rotation.z = 0.2;
-    const sleeveR = new THREE.Mesh(new THREE.CylinderGeometry(0.042, 0.055, 0.5, 12), M.sleeve);
-    sleeveR.position.set(0.07, -0.21, 0.31);
-    sleeveR.rotation.set(1.05, 0, -0.4);
-    g.add(sleeveR);
-    const sleeveL = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.05, 0.6, 12), M.sleeve);
-    sleeveL.position.set(-0.15, -0.21, -0.1);
-    sleeveL.rotation.set(1.15, 0, 0.85);
-    g.add(sleeveL);
+    // gloved hands and armored forearms
+    this.hands(g, { box }, M, GRIP, { kind: 'rail', c: [0, 0.006, -0.3], R: 0.041 });
 
     this.muzzle = new THREE.Object3D();
     this.muzzle.position.set(0, 0.012, -0.58);
@@ -399,25 +397,114 @@ export class Weapon {
     return [flash, flash2];
   }
 
-  hands(g, { box }, M, right, left, leftParent = g) {
-    const rh = box(0.062, 0.055, 0.085, M.glove, right[0], right[1], right[2], g);
-    rh.rotation.x = 0.35;
-    const lh = box(0.08, 0.05, 0.1, M.glove, left[0], left[1], left[2], leftParent);
-    lh.rotation.z = 0.2;
-    // forearms + upper arms as tapered tubes (hand -> elbow -> shoulder, out of view)
-    const limb = (a, b2, r1, r2, parent) => {
-      const A = new THREE.Vector3(...a), B = new THREE.Vector3(...b2);
-      const geo = new THREE.CylinderGeometry(r2, r1, A.distanceTo(B), 12);
-      geo.applyQuaternion(new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 1, 0), B.clone().sub(A).normalize()));
-      geo.translate((A.x + B.x) / 2, (A.y + B.y) / 2, (A.z + B.z) / 2);
-      parent.add(new THREE.Mesh(geo, M.sleeve));
+  // Gloved hands that wrap around the gun, with armored forearms going back out of view.
+  // A spec describes what the hand holds: a 'grip' (pistol grip / upright handle: the
+  // hand wraps around a near-vertical axis) or a 'rail' (handguard: palm underneath,
+  // fingers curl up the right side). c = centre of the held part, R = its radius.
+  hands(g, H, M, right, left, leftParent = g) {
+    const r = this.hand(right, true, M, g);
+    const l = this.hand(left, false, M, leftParent);
+    // forearm -> elbow -> upper arm (the shoulders are out of view)
+    const rE = r.wrist.clone().add(new THREE.Vector3(0.1, -0.14, 0.17));
+    this.arm(r.wrist, rE, rE.clone().add(new THREE.Vector3(0.06, -0.2, 0.3)), M, g);
+    const lE = l.wrist.clone().add(new THREE.Vector3(-0.17, -0.14, 0.19));
+    this.arm(l.wrist, lE, lE.clone().add(new THREE.Vector3(-0.07, -0.22, 0.3)), M, leftParent);
+  }
+
+  // a tapered tube from a to b (radius r1 at a, r2 at b)
+  tube(a, b, r1, r2, mat, parent, seg = 14) {
+    const len = a.distanceTo(b);
+    const geo = new THREE.CylinderGeometry(r2, r1, len, seg);
+    geo.applyQuaternion(_hq.setFromUnitVectors(_UP, _hd.subVectors(b, a).normalize()));
+    geo.translate((a.x + b.x) / 2, (a.y + b.y) / 2, (a.z + b.z) / 2);
+    const m = new THREE.Mesh(geo, mat);
+    parent.add(m);
+    return m;
+  }
+
+  arm(wrist, elbow, shoulder, M, parent) {
+    const V = (v) => v.clone();
+    const dir = V(elbow).sub(wrist).normalize();
+    const at = (t) => V(wrist).lerp(elbow, t);
+    // glove cuff, forearm, armored bracer with a class-coloured band
+    this.tube(V(wrist).addScaledVector(dir, -0.012), at(0.14), 0.031, 0.034, M.glove, parent);
+    this.tube(at(0.1), V(elbow), 0.03, 0.04, M.sleeve, parent);
+    this.tube(at(0.26), at(0.84), 0.037, 0.045, M.armor, parent, 8);
+    this.tube(at(0.32), at(0.37), 0.0385, 0.0395, M.accent, parent, 8);
+    this.tube(at(0.76), at(0.86), 0.046, 0.047, M.knuckle, parent, 8);
+    const el = new THREE.Mesh(new THREE.SphereGeometry(0.042, 12, 10), M.sleeve);
+    el.position.copy(elbow);
+    parent.add(el);
+    this.tube(V(elbow), V(shoulder), 0.046, 0.058, M.sleeve, parent);
+    const ed = V(shoulder).sub(elbow);
+    this.tube(V(elbow).addScaledVector(ed, 0.15), V(elbow).addScaledVector(ed, 0.7), 0.054, 0.062, M.armor, parent, 8);
+  }
+
+  hand(spec, isRight, M, parent) {
+    const R = spec.R;
+    // local frame: Z = the axis of what is held, palm on the -Y side, fingers curl
+    // around the axis through +X (or -X when mirrored)
+    let X, Y, Z, mirror;
+    if (spec.kind === 'grip') {
+      const tilt = spec.tilt ?? 0.34;
+      Z = new THREE.Vector3(0, -1, tilt).normalize();
+      Y = new THREE.Vector3(0, -tilt, -1).normalize(); // palm (-Y) behind the grip
+      X = new THREE.Vector3().crossVectors(Y, Z);
+      mirror = isRight; // right hand: fingers come round the right side to the front
+    } else {
+      X = new THREE.Vector3(1, 0, 0); Y = new THREE.Vector3(0, 1, 0); Z = new THREE.Vector3(0, 0, 1);
+      mirror = isRight; // left hand under the handguard: fingers up the right side
+    }
+    const C = new THREE.Vector3(...spec.c);
+    const sx = mirror ? -1 : 1;
+    const L = (x, y, z) => C.clone().addScaledVector(X, x * sx).addScaledVector(Y, y).addScaledVector(Z, z);
+    const seg = (a, b, r, mat = M.glove) => {
+      this.tube(a, b, r, r * 0.92, mat, parent, 8);
+      const j = new THREE.Mesh(new THREE.SphereGeometry(r, 8, 6), mat);
+      j.position.copy(b);
+      parent.add(j);
     };
-    const rE = [right[0] + 0.09, right[1] - 0.15, right[2] + 0.17];
-    limb([right[0] + 0.01, right[1] - 0.02, right[2] + 0.04], rE, 0.038, 0.046, g);
-    limb(rE, [rE[0] + 0.05, rE[1] - 0.2, rE[2] + 0.3], 0.048, 0.058, g);
-    const lE = [left[0] - 0.17, left[1] - 0.17, left[2] + 0.2];
-    limb([left[0] - 0.02, left[1] - 0.03, left[2] + 0.03], lE, 0.036, 0.046, leftParent);
-    limb(lE, [lE[0] - 0.08, lE[1] - 0.22, lE[2] + 0.3], 0.048, 0.058, leftParent);
+    // palm: a flattened block hugging the underside, with an armored plate on the back
+    const palmY = -(R + 0.016);
+    const basis = new THREE.Matrix4().makeBasis(X.clone().multiplyScalar(sx), Y, Z);
+    const palm = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.03, 0.084), M.glove);
+    palm.position.copy(L(-0.004, palmY, 0.002));
+    palm.quaternion.setFromRotationMatrix(basis);
+    parent.add(palm);
+    const plate = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.008, 0.07), M.knuckle);
+    plate.position.copy(L(-0.004, palmY - 0.018, 0.0));
+    plate.quaternion.copy(palm.quaternion);
+    parent.add(plate);
+    // four fingers side by side along the axis, each three segments curling round it
+    const rr = R + 0.011;
+    const lens = [[0.03, 0.023, 0.019], [0.032, 0.025, 0.02], [0.031, 0.024, 0.019], [0.026, 0.02, 0.016]];
+    for (let f = 0; f < 4; f++) {
+      const z = (f - 1.5) * 0.021;
+      const rad = f === 3 ? 0.0078 : 0.0088;
+      let ang = -Math.PI / 2 + 0.55; // starts at the edge of the palm
+      let prev = L(Math.cos(-Math.PI / 2 + 0.3) * rr, palmY + 0.004, z);
+      const knuckle = L(Math.cos(ang) * rr, Math.sin(ang) * rr, z);
+      seg(prev, knuckle, rad + 0.001);
+      prev = knuckle;
+      for (const l of lens[f]) {
+        ang += l / rr;
+        const p = L(Math.cos(ang) * rr, Math.sin(ang) * rr, z);
+        seg(prev, p, rad);
+        prev = p;
+      }
+    }
+    // thumb on the other side
+    let tang = -Math.PI / 2 - 0.5;
+    let tp = L(Math.cos(tang) * rr * 0.9, palmY + 0.002, 0.03);
+    for (const l of [0.03, 0.026, 0.02]) {
+      tang -= l / rr;
+      const p = L(Math.cos(tang) * rr, Math.sin(tang) * rr, 0.03 - l * 0.4);
+      seg(tp, p, 0.0098);
+      tp = p;
+    }
+    // wrist: below and behind the heel of the palm
+    const wrist = spec.kind === 'grip' ? L(0, palmY - 0.012, 0.06) : L(-0.012, palmY - 0.03, 0.05);
+    return { wrist };
   }
 
   // Scattergun: pump-action, short and heavy, orange pump grip
@@ -446,14 +533,8 @@ export class Weapon {
     g.add(pump);
     profile([[-0.17, 0.006], [-0.33, 0.006], [-0.335, -0.03], [-0.32, -0.042], [-0.18, -0.042], [-0.165, -0.03]], 0.072, M.orange, 0.01, 0, pump);
     for (let i = 0; i < 5; i++) box(0.076, 0.006, 0.008, M.dark, 0, -0.018, -0.19 - i * 0.03, pump);
-    this.hands(g, H, M, [0.004, -0.085, 0.085], [-0.008, -0.042, -0.255], pump);
-    // the left hand wraps the pump: fingers curl over the right side, thumb on the left
-    for (let k = 0; k < 4; k++) {
-      const f = box(0.016, 0.026, 0.02, M.glove, 0.043, -0.006 - Math.abs(k - 1.5) * 0.003, -0.215 - k * 0.024, pump);
-      f.rotation.z = -0.25;
-    }
-    const thumb = box(0.016, 0.022, 0.06, M.glove, -0.044, 0.0, -0.24, pump);
-    thumb.rotation.y = 0.15;
+    // the left hand wraps the pump (and moves with it)
+    this.hands(g, H, M, GRIP, { kind: 'rail', c: [0, -0.018, -0.252], R: 0.037 }, pump);
     const muzzle = new THREE.Object3D();
     muzzle.position.set(0, 0.038, -0.63);
     g.add(muzzle);
@@ -500,7 +581,7 @@ export class Weapon {
     fh.position.set(0, -0.06, -0.28);
     g.add(fh);
     for (const x of [-1, 1]) box(0.006, 0.026, 0.07, M.glow, x * 0.037, 0.02, -0.1, g);
-    this.hands(g, H, M, [0.004, -0.085, 0.085], [-0.004, -0.09, -0.28]);
+    this.hands(g, H, M, GRIP, { kind: 'grip', c: [0, -0.062, -0.28], R: 0.019, tilt: 0.05 });
     const muzzle = new THREE.Object3D();
     muzzle.position.set(0, 0.015, -0.49);
     g.add(muzzle);
@@ -568,7 +649,7 @@ export class Weapon {
     const dot = new THREE.Mesh(new THREE.CircleGeometry(0.0013, 10), M.dot);
     dot.position.set(0, SY, -0.1375);
     g.add(dot);
-    this.hands(g, H, M, [0.004, -0.085, 0.085], [-0.012, -0.03, -0.3]);
+    this.hands(g, H, M, GRIP, { kind: 'rail', c: [0, 0.017, -0.3], R: 0.043 });
     const muzzle = new THREE.Object3D();
     muzzle.position.set(0, 0.018, -0.63);
     g.add(muzzle);
@@ -596,6 +677,8 @@ export class Weapon {
     this.flash = m.flash;
     this.flash2 = m.flash2;
     this.adsPos = m.ads;
+    const cls = CLASSES[this.game.cls];
+    if (cls) this.M.accent.color.set(cls.color);
     this.pendingHits = new Map();
     this.pendingT = 0;
     this.reset();

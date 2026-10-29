@@ -10,6 +10,8 @@ import { CLIFF, PIT, VOID } from '../world/nav.js';
 
 const REACH = 15;
 const TRIM = ['#3de0ff', '#ffb43d', '#ff4d6d'];
+const _box = new THREE.Box3();
+const WALK_TOP = 2.1; // buildings up to this tall can be stood on (the swarm can still reach you there)
 const _v = new THREE.Vector3();
 // buildings turn in 45° steps (R while placing, T on a placed one)
 const ROT_STEPS = 8;
@@ -363,6 +365,9 @@ export function buildModel(type, level) {
     mount.position.z = 0.82;
     g.add(mount);
     part(mount, box(1.3, 1.6, 0.28), m.dark, 0, 1.0, 0.04);
+    // wall bracket: reaches back into the rock, so the emitter looks bolted on wherever the face is
+    part(mount, box(0.9, 1.25, 1.2), m.metal, 0, 1.0, 0.75);
+    for (const y of [0.45, 1.55]) part(mount, box(1.1, 0.12, 1.25), m.dark, 0, y, 0.72, false);
     part(mount, box(1.1, 0.12, 0.3), m.hazard, 0, 0.2, 0.0, false);
     for (const y of [0.55, 1.0, 1.45]) {
       part(mount, cyl(0.12, 0.14, 0.24, 12).rotateX(Math.PI / 2), m.metal, 0, y, -0.18, false);
@@ -418,6 +423,7 @@ export class BuildSystem {
       P.group.visible = false;
       this.scene.add(P.group);
       this.ghosts[t] = P.group;
+      if (t === 'laser') this.laserGhostMount = P.mount;
     }
     this.rangeRing = new THREE.Mesh(new THREE.RingGeometry(0.97, 1, 96).rotateX(-Math.PI / 2), this.indicatorMat);
     this.rangeRing.visible = false;
@@ -710,11 +716,78 @@ export class BuildSystem {
       baseYaw: rotation * ROT_ANGLE, yaw: rotation * ROT_ANGLE,
     };
     if (parts.head) parts.head.rotation.y = 0;
+    if (type === 'laser') this.fitToWall(s);
     if (isFinite(hp)) this.makeBar(s);
     this.structures.push(s);
     nav.struct[nav.idx(i, j)] = s;
     this.afterChange();
     return s;
+  }
+
+  // Laser Fence: slide the emitter forward until it sits in front of the rock face
+  // (cliffs lean into the cell and boulders bulge out, so a fixed spot would sink it in)
+  wallBack(x, y, z, rotation) {
+    const a = rotation * ROT_ANGLE;
+    const cos = Math.cos(a), sin = Math.sin(a);
+    const W = (lx, lz) => [x + lx * cos + lz * sin, z - lx * sin + lz * cos];
+    const free = (lz) => {
+      for (const lx of [-0.68, 0, 0.68]) {
+        const [wx, wz] = W(lx, lz);
+        if (groundAt(wx, wz) > y + 0.12) return false;
+      }
+      return true;
+    };
+    let back = 0.96;
+    while (back > -0.4 && !free(back)) back -= 0.04;
+    // rock meshes: cast rays from the front of the cell towards the wall
+    const rocks = this.game.world.raycastables;
+    if (rocks && rocks.length) {
+      const dir = _w.set(sin, 0, cos);
+      this.raycaster.far = 2.4;
+      for (const lx of [-0.62, 0, 0.62]) for (const ly of [0.3, 1.0, 1.7]) {
+        const [ox, oz] = W(lx, -0.95);
+        this.raycaster.set(_v.set(ox, y + ly, oz), dir);
+        const hit = this.raycaster.intersectObjects(rocks, false)[0];
+        if (hit) back = Math.min(back, -0.95 + hit.distance - 0.03);
+      }
+      this.raycaster.far = Infinity;
+    }
+    return Math.max(-0.45, back) - 0.2;
+  }
+
+  fitToWall(s) {
+    if (!s.parts.mount) return;
+    s.parts.mount.position.z = s.laserZ = this.wallBack(s.x, s.y, s.z, s.rotation);
+  }
+
+  // height of the top of a building (players can fly over it, and stand on low ones)
+  topOf(s) {
+    if (s.topLv === s.level && s.topY !== undefined) return s.topY;
+    const g = s.group;
+    const sy = g.scale.y;
+    g.scale.y = 1;
+    g.updateMatrixWorld(true);
+    _box.setFromObject(g, true);
+    g.scale.y = sy;
+    g.updateMatrixWorld(true);
+    s.topY = Math.min(_box.max.y, s.y + 4);
+    s.topLv = s.level;
+    return s.topY;
+  }
+
+  // the highest low building under a circle that a player could stand on (or -Infinity)
+  standTop(x, z, r, feetY) {
+    const nav = this.nav;
+    let best = -Infinity;
+    for (let j = nav.cj(z - r); j <= nav.cj(z + r); j++) for (let i = nav.ci(x - r); i <= nav.ci(x + r); i++) {
+      if (!nav.inside(i, j)) continue;
+      const s = nav.struct[nav.idx(i, j)];
+      if (!s || !s.def.solid) continue;
+      const top = this.topOf(s);
+      if (top - s.y > WALK_TOP || feetY < top - 0.35) continue;
+      if (top > best) best = top;
+    }
+    return best;
   }
 
   makeBar(s) {
@@ -795,6 +868,7 @@ export class BuildSystem {
     this.scene.add(parts.group);
     s.parts = parts;
     s.group = parts.group;
+    if (s.type === 'laser') this.fitToWall(s);
     s.maxHp = this.maxHpFor(s.type, s.level);
     if (!isFinite(s.maxHp)) s.hp = Infinity;
     s.rise = 0.6;
@@ -945,7 +1019,12 @@ export class BuildSystem {
         ghost.visible = true;
         const gy = elevation().minAt(x, z, 0.9);
         ghost.position.set(x, gy + 0.02, z);
-        ghost.rotation.y = (def.wall ? this.wallRotation(this.target.i, this.target.j) ?? 0 : this.rotation) * ROT_ANGLE;
+        const rot = def.wall ? this.wallRotation(this.target.i, this.target.j) ?? 0 : this.rotation;
+        ghost.rotation.y = rot * ROT_ANGLE;
+        if (this.mode === 'laser' && this.laserGhostMount) {
+          const key = this.target.i + ',' + this.target.j + ',' + rot;
+          if (this.laserGhostKey !== key) { this.laserGhostKey = key; this.laserGhostMount.position.z = this.wallBack(x, gy, z, rot); }
+        }
         const ok = this.target.valid && game.credits >= this.cost(this.mode);
         this.ghostMat.color.set(ok ? 0x3dff8a : 0xff3d5a);
         this.ghostMat.opacity = 0.32 + Math.sin(game.time * 6) * 0.08;
@@ -1399,7 +1478,8 @@ export class BuildSystem {
     const dx = -Math.sin(s.baseYaw), dz = -Math.cos(s.baseYaw);
     // the beam runs from the wall across the corridor until it hits something solid
     const nav = this.nav;
-    const sx = s.x + Math.sin(s.baseYaw) * 0.6, sz = s.z + Math.cos(s.baseYaw) * 0.6;
+    const lz = (s.laserZ ?? 0.82) - 0.22;
+    const sx = s.x + Math.sin(s.baseYaw) * lz, sz = s.z + Math.cos(s.baseYaw) * lz;
     let len = 0.5;
     while (len < lv.range) {
       const x = sx + dx * len, z = sz + dz * len;

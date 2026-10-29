@@ -132,8 +132,8 @@ game.shake = (amount, pos) => {
   game.shakeT = Math.min(1, game.shakeT + k);
 };
 
-game.resolveCircle = (pos, r) => {
-  game.world.nav.pushOut(pos, r);
+game.resolveCircle = (pos, r, skip = null) => {
+  game.world.nav.pushOut(pos, r, Infinity, skip);
   const core = game.core;
   const dx = pos.x - core.pos.x, dz = pos.z - core.pos.z;
   const d = Math.hypot(dx, dz);

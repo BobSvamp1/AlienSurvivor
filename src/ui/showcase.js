@@ -34,18 +34,61 @@ export class Showcase {
     }
   }
 
-  // anchor: a spot in front of the core where the squad stands
+  // anchor: an open, level spot near the core where the squad can stand and the
+  // camera has a clear view (searched once per map: corridors and caves are tight)
   anchor(out) {
     const w = this.game.world;
+    if (this.anchorWorld !== w) {
+      this.anchorWorld = w;
+      this.spot = this.findSpot(w);
+    }
+    if (!this.spot) return null;
+    this.dir = this.spot.dir; // the squad faces away from the core
+    return out.copy(this.spot.p);
+  }
+
+  findSpot(w) {
+    const nav = w.nav;
     const [cx, cz] = w.map.core;
     const [sx, sz] = w.map.spawn;
-    let dx = sx - cx, dz = sz - cz;
-    const l = Math.hypot(dx, dz) || 1;
-    dx /= l; dz /= l;
-    out.set(cx + dx * 10, 0, cz + dz * 10);
-    out.y = groundAt(out.x, out.z);
-    this.dir = Math.atan2(dx, dz); // the squad faces away from the core
-    return out;
+    const base = Math.atan2(sx - cx, sz - cz);
+    const free = (x, z, h0, tol) => {
+      const i = nav.ci(x), j = nav.cj(z);
+      if (!nav.inside(i, j) || nav.blocked[nav.idx(i, j)] || nav.struct[nav.idx(i, j)]) return false;
+      return Math.abs(groundAt(x, z) - h0) < tol;
+    };
+    const p = new THREE.Vector3(), q = new THREE.Vector3(), d = new THREE.Vector3();
+    for (const da of [0, 0.4, -0.4, 0.8, -0.8, 1.2, -1.2, 1.6, -1.6, 2.2, -2.2, Math.PI]) {
+      for (const dist of [10, 8, 12, 6.5]) {
+        const dir = base + da;
+        const sin = Math.sin(dir), cos = Math.cos(dir);
+        const ax = cx + sin * dist, az = cz + cos * dist;
+        const h0 = groundAt(ax, az);
+        const tw = (x, z, out) => out.set(ax + x * cos + z * sin, 0, az - x * sin + z * cos);
+        let ok = true;
+        for (const [x, , z] of SLOTS) {
+          tw(x, z, q);
+          if (!free(q.x, q.z, h0, 0.45)) { ok = false; break; }
+        }
+        if (!ok) continue;
+        // the whole stage (squad + camera) must be open ground: no rocks, crates or sandbags
+        for (let x = -1.6; x <= 4.6 && ok; x += 0.9) {
+          for (let z = -2.6; z <= 7.2; z += 0.9) {
+            tw(x, z, q);
+            if (!free(q.x, q.z, h0, 0.5)) { ok = false; break; }
+          }
+        }
+        if (!ok) continue;
+        tw(-0.4, 6.6, q); q.y = h0 + 1.5;
+        tw(SLOTS[0][0], SLOTS[0][2], p); p.y = h0 + 1.2;
+        d.subVectors(p, q);
+        const len = d.length();
+        d.normalize();
+        if (w.rayGround(q, d, len + 1) < len - 0.3) continue;
+        return { p: new THREE.Vector3(ax, h0, az), dir };
+      }
+    }
+    return null;
   }
 
   set(mode) {
@@ -62,6 +105,11 @@ export class Showcase {
     this.ensure();
     this.t += dt;
     const A = this.anchor(_anchor);
+    if (!A) {
+      // no room for the squad on this map: the menu flies around the core instead
+      for (const a of Object.values(this.avatars)) a.root.visible = false;
+      return false;
+    }
     const rot = this.dir;
     const cos = Math.cos(rot), sin = Math.sin(rot);
     // anchor space -> world (z of the anchor space points away from the core)
@@ -85,8 +133,8 @@ export class Showcase {
     const front = this.avatars[sel];
     const fp = front.root.position;
     if (this.mode === 'lineup') {
-      toWorld(-0.4, 1.5, 6.6, _c);
-      toWorld(0.55, 1.2, -0.8, _l);
+      toWorld(-0.4, 1.35, 6.6, _c);
+      toWorld(0.55, 1.6, -0.8, _l);
     } else {
       toWorld(SLOTS[0][0] - 1.0, 1.35, 3.0, _c);
       toWorld(SLOTS[0][0] - 1.2, 1.05, 0, _l);

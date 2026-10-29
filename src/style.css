@@ -440,9 +440,10 @@ input[type='range']::-moz-range-thumb { width: 14px; height: 20px; background: v
 #menu-bg { background: linear-gradient(90deg, rgba(3, 6, 16, 0.9) 0%, rgba(3, 6, 16, 0.62) 30%, rgba(3, 6, 16, 0) 58%), linear-gradient(0deg, rgba(3, 6, 16, 0.7) 0%, rgba(3, 6, 16, 0) 30%); }
 #menu-bg.hero { background: linear-gradient(90deg, rgba(3, 6, 16, 0.92) 0%, rgba(3, 6, 16, 0.75) 38%, rgba(3, 6, 16, 0) 62%), linear-gradient(0deg, rgba(3, 6, 16, 0.6) 0%, rgba(3, 6, 16, 0) 25%); }
 #screen-main { padding-left: clamp(24px, 6vw, 90px); }
+#screen-main .main-left { max-width: none; }
 #screen-main .kicker { color: var(--hero); letter-spacing: 6px; }
-.logo { font-family: var(--display); font-style: normal; font-weight: 700; font-size: clamp(84px, 13vh, 150px); line-height: 0.78; letter-spacing: 2px; margin: 14px 0 34px; text-transform: uppercase; transform: skewX(-8deg); transform-origin: left bottom; text-shadow: 0 6px 30px rgba(0, 0, 0, 0.5); }
-.logo span { display: block; color: transparent; background: linear-gradient(180deg, var(--hero-2), var(--hero) 60%, #e0661a); -webkit-background-clip: text; background-clip: text; text-shadow: none; filter: drop-shadow(0 4px 22px rgba(255, 155, 47, 0.35)); }
+.logo { white-space: nowrap; padding-right: 0.25em; font-family: var(--display); font-style: normal; font-weight: 700; font-size: clamp(84px, 13vh, 150px); line-height: 0.78; letter-spacing: 2px; margin: 14px 0 34px; text-transform: uppercase; transform: skewX(-8deg); transform-origin: left bottom; text-shadow: 0 6px 30px rgba(0, 0, 0, 0.5); }
+.logo span { display: block; width: max-content; padding-right: 0.3em; color: transparent; background: linear-gradient(180deg, var(--hero-2), var(--hero) 60%, #e0661a); -webkit-background-clip: text; background-clip: text; text-shadow: none; filter: drop-shadow(0 4px 22px rgba(255, 155, 47, 0.35)); }
 .main-nav { gap: 10px; }
 .nav-btn { min-width: 380px; padding: 6px 28px 4px; gap: 18px; background: rgba(255, 255, 255, 0.07); border: none; border-left: 5px solid rgba(255, 255, 255, 0.35); transform: skewX(-12deg); font-style: normal; }
 .nav-btn > * { transform: skewX(12deg); }

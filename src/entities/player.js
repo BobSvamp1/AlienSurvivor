@@ -172,7 +172,7 @@ export class Player {
     if (game.world.nav.poolAt(this.pos.x, this.pos.z)) {
       speed *= 0.65;
       this.poolT -= dt;
-      if (this.poolT <= 0 && this.onGround) {
+      if (this.poolT <= 0 && this.onGround && !mods.acidImmune) {
         this.poolT = 0.5;
         this.hurt(5);
         game.fx.burst(new THREE.Vector3(this.pos.x, 0.2, this.pos.z), '#b6ff3d', 6, 2, 0.08);

@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { PeerTransport, LocalTransport } from './transport.js';
 import { Avatar, PLAYER_COLORS } from '../entities/avatar.js';
+import { CLASSES } from '../data/classes.js';
 import { computeMods } from '../data/upgrades.js';
 
 // ---------------------------------------------------------------------------
@@ -18,7 +19,7 @@ const _w = new THREE.Vector3();
 
 // Another player, seen from this computer
 class RemotePlayer {
-  constructor(game, id, name, color) {
+  constructor(game, id, name, color, cls) {
     this.game = game;
     this.id = id;
     this.name = name;
@@ -34,7 +35,8 @@ class RemotePlayer {
     this.dead = false;
     this.hp = 100; this.maxHp = 100;
     this.fresh = true;
-    this.avatar = new Avatar(game.r.scene, name, color);
+    this.cls = cls;
+    this.avatar = new Avatar(game.r.scene, name, color, cls);
   }
 
   chest(out = new THREE.Vector3()) { return out.set(this.pos.x, this.pos.y + 1.1, this.pos.z); }
@@ -103,6 +105,18 @@ export class Net {
   }
 
   colorOf(id) { return PLAYER_COLORS[id % PLAYER_COLORS.length]; }
+  // this player picked a class (in the lobby)
+  setClass(cls) {
+    if (!this.active) return;
+    if (this.isHost) {
+      const p = this.players.find((q) => q.id === 0);
+      if (p) p.cls = cls;
+      this.broadcast({ t: 'lobby', players: this.players, map: this.lobbyMap, diff: this.lobbyDiff, endless: this.lobbyEndless });
+      this.lobbyChanged();
+    } else if (this.conn) this.conn.send({ t: 'cls', c: cls });
+  }
+
+  clsOf(id) { const p = this.players.find((q) => q.id === id); return p ? p.cls || 'marine' : 'marine'; }
   nameOf(id) { const p = this.players.find((q) => q.id === id); return p ? p.name : 'Player ' + (id + 1); }
   lobbyChanged() { if (this.onLobby) this.onLobby(); }
 
@@ -119,7 +133,7 @@ export class Net {
         this.code = code;
         this.role = 'host';
         this.myId = 0;
-        this.players = [{ id: 0, name: this.name, color: this.colorOf(0) }];
+        this.players = [{ id: 0, name: this.name, color: this.colorOf(0), cls: this.game.cls }];
         this.lobbyChanged();
         return code;
       } catch (e) { lastErr = e; t.close(); }
@@ -141,7 +155,7 @@ export class Net {
       c.pid = id;
       this.conns.set(id, c);
       const name = String(m.name || 'Player').slice(0, 14);
-      this.players.push({ id, name, color: this.colorOf(id) });
+      this.players.push({ id, name, color: this.colorOf(id), cls: CLASSES[m.cls] ? m.cls : 'marine' });
       c.send({ t: 'welcome', id, code: this.code, players: this.players, map: this.lobbyMap, diff: this.lobbyDiff, endless: this.lobbyEndless });
       this.broadcast({ t: 'lobby', players: this.players, map: this.lobbyMap, diff: this.lobbyDiff, endless: this.lobbyEndless });
       if (game.inGame) {
@@ -162,12 +176,23 @@ export class Net {
     } else if (m.t === 'hit') {
       const e = game.enemies.byNid(m.n);
       const r = this.remotes.get(id);
-      if (e && !e.dead) game.enemies.damage(e, m.d, { crit: !!m.c, from: r ? r.pos : null, showNumber: false });
+      if (e && !e.dead) {
+        game.enemies.damage(e, m.d, { crit: !!m.c, from: r ? r.pos : null, showNumber: false });
+        if (m.b) { e.burn = Math.max(e.burn, 2); e.burnDps = Math.max(e.burnDps || 0, m.b); } // flamethrower
+      }
     } else if (m.t === 'tr') {
-      this.showTracer(id, m.f, m.to);
-      this.event({ k: 'tr', id, f: m.f, to: m.to });
+      this.showTracer(id, m.f, m.to, m.w);
+      this.event({ k: 'tr', id, f: m.f, to: m.to, w: m.w });
     } else if (m.t === 'act') {
       this.hostAction(id, m);
+    } else if (m.t === 'cls') {
+      // a friend picked another class in the lobby
+      const p = this.players.find((q) => q.id === id);
+      if (p && CLASSES[m.c] && !game.inGame) {
+        p.cls = m.c;
+        this.broadcast({ t: 'lobby', players: this.players, map: this.lobbyMap, diff: this.lobbyDiff, endless: this.lobbyEndless });
+        this.lobbyChanged();
+      }
     }
   }
 
@@ -182,7 +207,7 @@ export class Net {
       const prevMode = b.mode;
       b.mode = m.type;
       const reason = b.invalidReason(m.i, m.j, nav.cx(m.i), nav.cz(m.j));
-      const cost = b.cost(m.type);
+      const cost = b.cost(m.type, this.clsOf(id));
       const need = b.powerOf(m.type, 0);
       b.mode = prevMode;
       if (reason || game.credits < cost || need > b.powerFree()) { this.sendTo(id, { t: 'toast', m: reason || (game.credits < cost ? 'Not enough crystals' : `Needs ${need} ⚡ power`), k: 'warn' }); return; }
@@ -192,7 +217,7 @@ export class Net {
       game.stats.built++;
       game.audio.build(s.group.position);
       game.fx.dust(s.x, s.z, 1.2);
-    } else if (m.a === 'upgrade') { const s = sAt(); if (s) b.upgrade(s, true); }
+    } else if (m.a === 'upgrade') { const s = sAt(); if (s) b.upgrade(s, this.clsOf(id)); }
     else if (m.a === 'repair') { const s = sAt(); if (s) b.repair(s, true); }
     else if (m.a === 'sell') { const s = sAt(); if (s) b.sell(s, true); }
     else if (m.a === 'turn') { const s = sAt(); if (s) b.turn(s); }
@@ -264,7 +289,7 @@ export class Net {
         }
       };
       conn.onClose = () => { if (this.role === 'client') this.lostHost('Lost connection to the host'); };
-      conn.send({ t: 'hello', name: this.name });
+      conn.send({ t: 'hello', name: this.name, cls: this.game.cls });
     });
   }
 
@@ -324,7 +349,7 @@ export class Net {
   // ------------------------------------------------------------ in game
   addRemote(id) {
     if (id === this.myId || this.remotes.has(id)) return this.remotes.get(id);
-    const r = new RemotePlayer(this.game, id, this.nameOf(id), this.colorOf(id));
+    const r = new RemotePlayer(this.game, id, this.nameOf(id), this.colorOf(id), this.clsOf(id));
     this.remotes.set(id, r);
     this.game.players.push(r);
     return r;
@@ -448,7 +473,7 @@ export class Net {
       if (key !== this.lastUp) {
         this.lastUp = key;
         g.upgrades.levels = { ...m.up };
-        g.mods = computeMods(g.upgrades.levels);
+        g.mods = computeMods(g.upgrades.levels, g.cls);
       }
     }
     if (m.ev) for (const e of m.ev) this.onEvent(e);
@@ -456,28 +481,27 @@ export class Net {
 
   // ------------------------------------------------------------ shared events
   // the local player fired: everybody else sees the tracer
-  shot(from, to) {
+  // w: weapon kind (rifle / shotgun / flamer / railgun), so friends see the right effect
+  shot(from, to, w = 'rifle') {
     if (!this.active) return;
     const f = [r2(from.x), r2(from.y), r2(from.z)], t = [r2(to.x), r2(to.y), r2(to.z)];
-    if (this.isHost) this.event({ k: 'tr', id: 0, f, to: t });
-    else if (this.conn) this.conn.send({ t: 'tr', f, to: t });
+    if (this.isHost) this.event({ k: 'tr', id: 0, f, to: t, w });
+    else if (this.conn) this.conn.send({ t: 'tr', f, to: t, w });
   }
 
-  showTracer(id, f, to) {
+  showTracer(id, f, to, w = 'rifle') {
     const g = this.game;
     const r = this.remotes.get(id);
     const from = r ? r.avatar.muzzleWorld(_v) : _v.set(f[0], f[1], f[2]);
     if (r) r.avatar.fire();
     _w.set(to[0], to[1], to[2]);
-    g.fx.tracer(from, _w, '#fff0b0', 0.03, 0.06);
-    g.fx.muzzle(from, '#ffd27a', 0.5);
-    g.audio.remoteShot(from);
+    g.weapon.remoteEffect(w, from, _w);
   }
 
   onEvent(e) {
     const g = this.game;
     switch (e.k) {
-      case 'tr': if (e.id !== this.myId) this.showTracer(e.id, e.f, e.to); break;
+      case 'tr': if (e.id !== this.myId) this.showTracer(e.id, e.f, e.to, e.w); break;
       case 'wave': g.showWaveStart(e); break;
       case 'clear': g.showWaveCleared(e); break;
       case 'over': g.netGameOver(e); break;

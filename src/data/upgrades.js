@@ -1,4 +1,5 @@
 // Armory upgrades, bought between waves. They change the global "mods".
+import { classMods } from './classes.js';
 
 export const UPGRADE_TABS = [
   { id: 'weapon', name: 'Weapon' },
@@ -8,9 +9,9 @@ export const UPGRADE_TABS = [
 ];
 
 export const UPGRADES = [
-  { id: 'dmg', tab: 'weapon', icon: 'damage', name: 'Hollow Points', desc: '+15% rifle damage', base: 120, max: 4 },
+  { id: 'dmg', tab: 'weapon', icon: 'damage', name: 'Hollow Points', desc: '+15% weapon damage', base: 120, max: 4 },
   { id: 'rate', tab: 'weapon', icon: 'rate', name: 'Rapid Cycler', desc: '+10% fire rate', base: 130, max: 3 },
-  { id: 'mag', tab: 'weapon', icon: 'mag', name: 'Extended Mag', desc: '+10 rounds per magazine', base: 90, max: 2 },
+  { id: 'mag', tab: 'weapon', icon: 'mag', name: 'Extended Mag', desc: '+33% magazine / fuel', base: 90, max: 2 },
   { id: 'reload', tab: 'weapon', icon: 'reload', name: 'Speed Loader', desc: '−20% reload time', base: 90, max: 2 },
   { id: 'crit', tab: 'weapon', icon: 'crit', name: 'Weak Point Scanner', desc: '+50% headshot damage', base: 150, max: 2 },
   { id: 'armor', tab: 'survival', icon: 'armor', name: 'Exo Plating', desc: '+25 max health', base: 110, max: 3 },
@@ -26,12 +27,12 @@ export const UPGRADES = [
   { id: 'coreHeal', tab: 'core', icon: 'heal', name: 'Core Repair', desc: 'Restore 400 core health (gets pricier each time)', base: 120, repeat: true },
 ];
 
-export function computeMods(levels) {
+export function computeMods(levels, cls = null) {
   const L = (id) => levels[id] || 0;
-  return {
+  const mods = {
     weaponDmg: 1 + 0.15 * L('dmg'),
     fireRate: 1 + 0.1 * L('rate'),
-    magBonus: 10 * L('mag'),
+    magMult: 1 + 0.33 * L('mag'),
     reloadMult: Math.pow(0.8, L('reload')),
     critMult: 2 + 0.5 * L('crit'),
     maxHpBonus: 25 * L('armor'),
@@ -45,4 +46,5 @@ export function computeMods(levels) {
     corePulse: L('corePulse'),
     reactor: 5 * L('reactor'),
   };
+  return cls ? classMods(cls, mods) : mods;
 }

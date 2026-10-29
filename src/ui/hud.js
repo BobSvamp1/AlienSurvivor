@@ -1,5 +1,7 @@
 import { icon } from './icons.js';
-import { BUILDINGS, BUILD_ORDER } from '../data/buildings.js';
+import { BUILDINGS } from '../data/buildings.js';
+import { getClass, WEAPONS } from '../data/classes.js';
+const WEAPON_ICONS = { rifle: 'rifle', shotgun: 'shotgun', flamer: 'flamer', railgun: 'railgun' };
 
 const $ = (id) => document.getElementById(id);
 const SLOT_ICONS = { gun: 'rifle', barricade: 'barricade', gatling: 'gatling', flamer: 'flamer', tesla: 'tesla', mortar: 'mortar', trap: 'trap', generator: 'generator', shield: 'shield', spikes: 'spikes', goo: 'goo', vent: 'vent', launcher: 'launcher', laser: 'laser' };
@@ -29,14 +31,7 @@ export class Hud {
     this.el.power = $('power-num');
     this.el.powerRes = document.querySelector('.res.power');
 
-    // hotbar
-    const slots = ['gun', ...BUILD_ORDER];
-    this.el.hotbar.innerHTML = slots.map((m, i) => {
-      const def = BUILDINGS[m];
-      const pw = def && def.levels[0].power ? `<span class="pw">⚡${def.levels[0].power}</span>` : def && def.levels[0].supply ? `<span class="pw">+⚡${def.levels[0].supply}</span>` : '';
-      return `<div class="slot" data-mode="${m}"><span class="key">${(i + 1) % 10}</span>${pw}${icon(SLOT_ICONS[m])}<span class="nm">${def ? def.short : 'Rifle'}</span>${def ? `<span class="cost">${def.cost}</span>` : '<span class="cost" style="color:var(--muted)">∞</span>'}</div>`;
-    }).join('');
-    this.slotEls = [...this.el.hotbar.children];
+    this.buildHotbar('marine');
 
     this.dirEls = [];
     for (let i = 0; i < 6; i++) {
@@ -53,6 +48,24 @@ export class Hud {
     this.lastCredits = 0;
     this.radarCtx = this.el.radar.getContext('2d');
     this.radarT = 0;
+    this.cache = {};
+  }
+
+  // hotbar: the class's weapon on 1, then its traps and defenses
+  buildHotbar(clsId) {
+    const cls = getClass(clsId);
+    const wdef = WEAPONS[cls.weapon];
+    const wName = { rifle: 'Rifle', shotgun: 'Scatter', flamer: 'Flamer', railgun: 'Rail' }[cls.weapon];
+    const slots = ['gun', ...cls.build];
+    this.el.hotbar.innerHTML = slots.map((m, i) => {
+      const def = BUILDINGS[m];
+      const pw = def && def.levels[0].power ? `<span class="pw">⚡${def.levels[0].power}</span>` : def && def.levels[0].supply ? `<span class="pw">+⚡${def.levels[0].supply}</span>` : '';
+      const ic = m === 'gun' ? WEAPON_ICONS[cls.weapon] : SLOT_ICONS[m];
+      return `<div class="slot" data-mode="${m}"><span class="key">${(i + 1) % 10}</span>${pw}${icon(ic)}<span class="nm">${def ? def.short : wName}</span>${def ? `<span class="cost">${def.cost}</span>` : '<span class="cost" style="color:var(--muted)">∞</span>'}</div>`;
+    }).join('');
+    this.slotEls = [...this.el.hotbar.children];
+    const wn = document.getElementById('weapon-name');
+    if (wn) wn.textContent = wdef.name;
     this.cache = {};
   }
 

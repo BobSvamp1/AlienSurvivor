@@ -577,7 +577,13 @@ export class EnemyManager {
       if (Math.random() < dt * 25) game.fx.toxic(c.x + (Math.random() - 0.5) * c.r * 1.6, c.z + (Math.random() - 0.5) * c.r * 1.6);
       if (c.tick <= 0) {
         c.tick = 0.5;
-        if (!game.net.isClient) for (const p of game.players) if (!p.dead && Math.hypot(p.pos.x - c.x, p.pos.z - c.z) < c.r) p.hurt(5);
+        if (!game.net.isClient) {
+          for (const p of game.players) {
+            if (p.dead || Math.hypot(p.pos.x - c.x, p.pos.z - c.z) >= c.r) continue;
+            const pyro = p.isRemote ? game.net.clsOf(p.id) === 'pyro' : game.cls === 'pyro'; // Pyros don't mind the fumes
+            if (!pyro) p.hurt(5);
+          }
+        }
       }
       if (c.t <= 0) this.clouds.splice(i, 1);
     }

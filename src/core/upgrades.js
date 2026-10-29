@@ -8,7 +8,7 @@ export class Upgrades {
 
   reset() {
     this.levels = {};
-    this.game.mods = computeMods(this.levels);
+    this.game.mods = computeMods(this.levels, this.game.cls);
   }
 
   level(id) { return this.levels[id] || 0; }
@@ -37,7 +37,7 @@ export class Upgrades {
       g.net.request({ a: 'buy', id });
       g.credits -= this.cost(id);
       this.levels[id] = this.level(id) + 1;
-      g.mods = computeMods(this.levels);
+      g.mods = computeMods(this.levels, g.cls);
       if (id === 'mag') g.weapon.ammo = g.weapon.stats.mag;
       g.audio.buy();
       return true;
@@ -46,7 +46,7 @@ export class Upgrades {
     g.credits -= cost;
     this.levels[id] = this.level(id) + 1;
     const before = g.mods;
-    g.mods = computeMods(this.levels);
+    g.mods = computeMods(this.levels, g.cls);
     if (id === 'armor') g.player.hp += 25;
     if (id === 'coreHp') { g.core.maxHp += 300; g.core.hp += 300; }
     if (id === 'coreHeal') g.core.hp = Math.min(g.core.maxHp, g.core.hp + 400);

@@ -1,5 +1,7 @@
 import * as THREE from 'three';
-import { BUILDINGS, BUILD_ORDER, CORE_POWER } from '../data/buildings.js';
+import { BUILDINGS, CORE_POWER } from '../data/buildings.js';
+import { classCost } from '../data/classes.js';
+const ALL_TYPES = Object.keys(BUILDINGS);
 import { CELL } from '../world/nav.js';
 import { pbr } from '../core/materials.js';
 import { cableGeometry, cableEnergyTexture } from '../world/clutter.js';
@@ -395,7 +397,7 @@ export class BuildSystem {
   init() {
     // ghosts are recreated per map (scene is shared, so just once is fine)
     if (Object.keys(this.ghosts).length) return;
-    for (const t of BUILD_ORDER) {
+    for (const t of ALL_TYPES) {
       const P = buildModel(t, 0);
       P.group.traverse((o) => { if (o.isMesh) { o.material = this.ghostMat; o.castShadow = false; o.receiveShadow = false; } });
       P.group.visible = false;
@@ -471,7 +473,7 @@ export class BuildSystem {
 
   setMode(mode) {
     this.mode = mode;
-    for (const t of BUILD_ORDER) if (this.ghosts[t]) this.ghosts[t].visible = false;
+    for (const t of ALL_TYPES) if (this.ghosts[t]) this.ghosts[t].visible = false;
     if (this.rangeRing) this.rangeRing.visible = false;
     if (this.arcMesh) this.arcMesh.visible = false;
     if (this.game.world) this.game.world.showGrid(!!mode);
@@ -491,8 +493,9 @@ export class BuildSystem {
     }
   }
 
-  cost(type) {
-    return Math.round(BUILDINGS[type].cost * this.game.mods.buildCost);
+  // cls: the class of whoever builds (Engineers build cheaper)
+  cost(type, cls = this.game.cls) {
+    return Math.round(BUILDINGS[type].cost * this.game.mods.buildCost * classCost(cls));
   }
 
   stat(s, key) {
@@ -732,9 +735,9 @@ export class BuildSystem {
   }
 
   // ------------------------------------------------------------ actions on existing buildings
-  upgradeCost(s) {
+  upgradeCost(s, cls = this.game.cls) {
     const next = s.def.levels[s.level + 1];
-    return next ? Math.round(next.cost * this.game.mods.buildCost) : null;
+    return next ? Math.round(next.cost * this.game.mods.buildCost * classCost(cls)) : null;
   }
 
   repairCost(s) {
@@ -747,10 +750,10 @@ export class BuildSystem {
     return Math.floor(s.invested * 0.6 * frac);
   }
 
-  upgrade(s) {
+  upgrade(s, cls = this.game.cls) {
     const game = this.game;
     if (game.net.isClient) { game.net.request({ a: 'upgrade', i: s.i, j: s.j }); return; }
-    const cost = this.upgradeCost(s);
+    const cost = this.upgradeCost(s, cls);
     if (cost === null) { game.audio.error(); game.hud.toast('Already max level', 'warn'); return; }
     if (game.credits < cost) { game.audio.error(); game.hud.toast('Not enough crystals', 'warn'); return; }
     const extra = this.powerOf(s.type, s.level + 1) - this.powerOf(s.type, s.level);
@@ -953,7 +956,7 @@ export class BuildSystem {
       } else ghost.visible = false;
     } else {
       this.target = null;
-      for (const t of BUILD_ORDER) if (this.ghosts[t]) this.ghosts[t].visible = false;
+      for (const t of ALL_TYPES) if (this.ghosts[t]) this.ghosts[t].visible = false;
       if (this.rangeRing) this.rangeRing.visible = false;
       if (this.arcMesh) this.arcMesh.visible = false;
     }

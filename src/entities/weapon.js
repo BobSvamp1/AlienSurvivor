@@ -1,12 +1,15 @@
 import * as THREE from 'three';
 import { mergeStatic } from '../core/geomerge.js';
 import { wornMetal } from '../core/materials.js';
+import { WEAPONS } from '../data/classes.js';
 
 const _dir = new THREE.Vector3();
 const _origin = new THREE.Vector3();
 const _muzzle = new THREE.Vector3();
 const _end = new THREE.Vector3();
 const _n = new THREE.Vector3();
+const _p = new THREE.Vector3();
+const _q = new THREE.Vector3();
 
 // --- small canvas textures for the scope
 function lensDirtTexture() {
@@ -357,11 +360,19 @@ export class Weapon {
 
     // collapse the ~50 static parts into one mesh per material (far fewer draw calls)
     mergeStatic(g, [this.mag, this.flash, this.flash2, screen]);
+    g.scale.setScalar(0.9);
+    this.models = {
+      rifle: { g, mag: this.mag, magHome: this.magHome, muzzle: this.muzzle, flash: this.flash, flash2: this.flash2, ads: ADS, screen: true },
+    };
+    // the other classes' weapons
+    const helpers = { profile, box, cyl, M };
+    this.models.shotgun = this.buildShotgun(root, helpers);
+    this.models.flamer = this.buildFlamer(root, helpers);
+    this.models.railgun = this.buildRailgun(root, helpers);
     root.traverse((o) => { if (o.isMesh) { o.castShadow = false; o.receiveShadow = false; } });
     this.root = root;
     this.gun = g;
     this.M = M;
-    g.scale.setScalar(0.9);
     root.position.copy(HIP);
     root.visible = false;
     this.game.r.camera.add(root);
@@ -373,7 +384,212 @@ export class Weapon {
     this.recoilV = 0;
   }
 
+  // ------------------------------------------------------------ other weapons
+  makeFlash(g, at) {
+    const flash = new THREE.Mesh(
+      new THREE.PlaneGeometry(0.16, 0.16),
+      new THREE.MeshBasicMaterial({ color: '#ffd27a', transparent: true, opacity: 0, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide, toneMapped: false })
+    );
+    flash.position.copy(at);
+    g.add(flash);
+    const flash2 = flash.clone();
+    flash2.rotation.y = Math.PI / 2;
+    flash2.position.z -= 0.04;
+    g.add(flash2);
+    return [flash, flash2];
+  }
+
+  hands(g, { box }, M, right, left, leftParent = g) {
+    const rh = box(0.062, 0.055, 0.085, M.glove, right[0], right[1], right[2], g);
+    rh.rotation.x = 0.35;
+    const lh = box(0.08, 0.05, 0.1, M.glove, left[0], left[1], left[2], leftParent);
+    lh.rotation.z = 0.2;
+    const sleeveR = new THREE.Mesh(new THREE.CylinderGeometry(0.042, 0.055, 0.5, 12), M.sleeve);
+    sleeveR.position.set(right[0] + 0.066, right[1] - 0.125, right[2] + 0.225);
+    sleeveR.rotation.set(1.05, 0, -0.4);
+    g.add(sleeveR);
+    const sleeveL = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.05, 0.6, 12), M.sleeve);
+    sleeveL.position.set(left[0] - 0.14, left[1] - 0.165, left[2] + 0.2);
+    sleeveL.rotation.set(1.15, 0, 0.85);
+    leftParent.add(sleeveL);
+  }
+
+  // Scattergun: pump-action, short and heavy, orange pump grip
+  buildShotgun(root, H) {
+    const { profile, box, cyl, M } = H;
+    const g = new THREE.Group();
+    root.add(g);
+    profile([[0.12, -0.03], [0.12, 0.055], [-0.02, 0.065], [-0.15, 0.06], [-0.17, 0.01], [-0.15, -0.045], [0.02, -0.045]], 0.064, M.body, 0.007, 0, g);
+    profile([[0.11, 0.045], [0.33, 0.03], [0.34, -0.075], [0.28, -0.08], [0.12, -0.02]], 0.052, M.dark, 0.008, 0, g); // stock
+    box(0.064, 0.09, 0.022, M.rubber, 0, -0.02, 0.335, g); // butt pad
+    profile([[0.05, -0.03], [0.1, -0.03], [0.13, -0.13], [0.07, -0.135]], 0.042, M.dark, 0.006, 0, g); // grip
+    cyl(0.019, 0.019, 0.44, M.mid, 0, 0.038, -0.36, g); // barrel
+    cyl(0.026, 0.024, 0.05, M.dark, 0, 0.038, -0.6, g, 10); // choke
+    cyl(0.016, 0.016, 0.36, M.dark, 0, -0.008, -0.33, g); // magazine tube
+    // vented heat shield over the barrel
+    profile([[-0.18, 0.058], [-0.52, 0.058], [-0.53, 0.046], [-0.18, 0.046]], 0.046, M.panel, 0.004, 0, g);
+    for (let i = 0; i < 6; i++) box(0.048, 0.004, 0.018, M.glow, 0, 0.06, -0.22 - i * 0.05, g);
+    // shell carrier on the side: glowing orange shells
+    for (let i = 0; i < 4; i++) cyl(0.009, 0.009, 0.05, M.orange, 0.036, 0.012, 0.0 - i * 0.026, g, 8);
+    box(0.006, 0.012, 0.11, M.dark, 0.032, -0.004, -0.04, g);
+    // sights: rear notch and a bright front bead
+    box(0.03, 0.014, 0.012, M.dark, 0, 0.072, -0.03, g);
+    box(0.006, 0.014, 0.006, M.dot, 0, 0.068, -0.56, g);
+    // pump (slides back and forth when racked)
+    const pump = new THREE.Group();
+    g.add(pump);
+    profile([[-0.17, 0.006], [-0.33, 0.006], [-0.335, -0.03], [-0.32, -0.042], [-0.18, -0.042], [-0.165, -0.03]], 0.072, M.orange, 0.01, 0, pump);
+    for (let i = 0; i < 5; i++) box(0.076, 0.006, 0.008, M.dark, 0, -0.018, -0.19 - i * 0.03, pump);
+    this.hands(g, H, M, [0.004, -0.085, 0.085], [-0.012, -0.05, -0.26], pump);
+    const muzzle = new THREE.Object3D();
+    muzzle.position.set(0, 0.038, -0.63);
+    g.add(muzzle);
+    const [flash, flash2] = this.makeFlash(g, muzzle.position);
+    flash.scale.setScalar(1.6);
+    mergeStatic(g, [pump, flash, flash2]);
+    mergeStatic(pump);
+    g.scale.setScalar(0.9);
+    g.visible = false;
+    return { g, pump, muzzle, flash, flash2, ads: new THREE.Vector3(0.07, -0.135, -0.26) }; // no scope: pulled in tight, sights under the crosshair
+  }
+
+  // Flamethrower: fuel canister under the gun, wide nozzle with a blue pilot flame
+  buildFlamer(root, H) {
+    const { profile, box, cyl, M } = H;
+    const g = new THREE.Group();
+    root.add(g);
+    profile([[0.1, -0.03], [0.1, 0.05], [-0.06, 0.06], [-0.22, 0.05], [-0.24, 0.0], [-0.22, -0.035], [0.0, -0.04]], 0.07, M.body, 0.008, 0, g);
+    profile([[0.1, 0.04], [0.28, 0.035], [0.28, -0.06], [0.22, -0.065], [0.1, -0.02]], 0.05, M.dark, 0.008, 0, g); // stock
+    profile([[0.05, -0.03], [0.1, -0.03], [0.13, -0.13], [0.07, -0.135]], 0.042, M.dark, 0.006, 0, g); // grip
+    // fuel canister (orange) with caps and a pressure gauge
+    cyl(0.045, 0.045, 0.24, M.orange, 0, -0.09, -0.08, g, 20);
+    for (const z of [0.04, -0.2]) cyl(0.048, 0.048, 0.016, M.dark, 0, -0.09, z, g, 20);
+    const gauge = new THREE.Mesh(new THREE.CylinderGeometry(0.018, 0.018, 0.01, 16).rotateZ(Math.PI / 2), M.mid);
+    gauge.position.set(0.05, -0.08, -0.06);
+    g.add(gauge);
+    box(0.002, 0.02, 0.003, M.dot, 0.056, -0.076, -0.06, g);
+    // feed hose
+    const hose = new THREE.Mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3([[0.02, -0.06, -0.19], [0.05, -0.04, -0.25], [0.03, 0.0, -0.3]].map((v) => new THREE.Vector3(...v))), 12, 0.009, 6), M.cable);
+    g.add(hose);
+    // barrel + nozzle with heat rings
+    cyl(0.022, 0.022, 0.18, M.mid, 0, 0.015, -0.32, g);
+    cyl(0.03, 0.036, 0.07, M.dark, 0, 0.015, -0.44, g, 18);
+    for (let i = 0; i < 4; i++) {
+      const ring = new THREE.Mesh(new THREE.TorusGeometry(0.027, 0.005, 6, 18), M.orange);
+      ring.position.set(0, 0.015, -0.27 - i * 0.035);
+      g.add(ring);
+    }
+    // igniter under the nozzle
+    cyl(0.007, 0.007, 0.08, M.mid, 0, -0.02, -0.42, g, 8);
+    box(0.024, 0.04, 0.03, M.dark, 0, 0.0, -0.37, g);
+    // front handle
+    const fh = new THREE.Mesh(new THREE.CylinderGeometry(0.016, 0.018, 0.11, 10), M.rubber);
+    fh.position.set(0, -0.06, -0.28);
+    g.add(fh);
+    for (const x of [-1, 1]) box(0.006, 0.026, 0.07, M.glow, x * 0.037, 0.02, -0.1, g);
+    this.hands(g, H, M, [0.004, -0.085, 0.085], [-0.004, -0.09, -0.28]);
+    const muzzle = new THREE.Object3D();
+    muzzle.position.set(0, 0.015, -0.49);
+    g.add(muzzle);
+    // pilot light: a small blue flame that flickers at the nozzle
+    const pilot = new THREE.Mesh(new THREE.ConeGeometry(0.012, 0.05, 8).rotateX(-Math.PI / 2), new THREE.MeshBasicMaterial({ color: '#5ab0ff', transparent: true, opacity: 0.85, blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false }));
+    pilot.position.set(0, -0.02, -0.475);
+    g.add(pilot);
+    const [flash, flash2] = this.makeFlash(g, muzzle.position);
+    flash.material.color.set('#ff9a3d');
+    mergeStatic(g, [pilot, flash, flash2]);
+    g.scale.setScalar(0.9);
+    g.visible = false;
+    return { g, pilot, muzzle, flash, flash2, ads: new THREE.Vector3(0.08, -0.15, -0.27) };
+  }
+
+  // Rail cannon: long twin rails with glowing coils and a compact scope
+  buildRailgun(root, H) {
+    const { profile, box, cyl, M } = H;
+    const g = new THREE.Group();
+    root.add(g);
+    const SY = 0.118;
+    profile([[0.14, -0.03], [0.14, 0.06], [-0.04, 0.07], [-0.2, 0.06], [-0.22, 0.0], [-0.2, -0.04], [0.02, -0.045]], 0.07, M.body, 0.008, 0, g);
+    profile([[0.13, 0.05], [0.33, 0.04], [0.34, -0.07], [0.27, -0.07], [0.14, -0.02]], 0.05, M.panel, 0.008, 0, g); // stock
+    box(0.06, 0.085, 0.022, M.rubber, 0, -0.012, 0.335, g);
+    profile([[0.05, -0.03], [0.1, -0.03], [0.13, -0.13], [0.07, -0.135]], 0.042, M.dark, 0.006, 0, g); // grip
+    // capacitor bank under the body
+    for (let i = 0; i < 3; i++) cyl(0.016, 0.016, 0.12, M.dark, -0.02 + i * 0.02, -0.06, -0.08, g, 10);
+    box(0.07, 0.03, 0.15, M.dark, 0, -0.05, -0.08, g);
+    // twin rails with glowing coils between them
+    for (const x of [-1, 1]) {
+      box(0.012, 0.034, 0.4, M.mid, x * 0.024, 0.018, -0.42, g);
+      box(0.004, 0.02, 0.38, M.glow, x * 0.017, 0.018, -0.42, g);
+    }
+    for (let i = 0; i < 6; i++) {
+      const coil = new THREE.Mesh(new THREE.TorusGeometry(0.036, 0.006, 6, 16), i % 2 ? M.glow : M.dark);
+      coil.position.set(0, 0.018, -0.26 - i * 0.055);
+      g.add(coil);
+    }
+    box(0.07, 0.012, 0.42, M.panel, 0, 0.05, -0.42, g); // top strap
+    box(0.07, 0.012, 0.42, M.dark, 0, -0.016, -0.42, g); // bottom strap
+    // energy cells on both sides
+    for (const x of [-1, 1]) box(0.01, 0.03, 0.12, M.glow, x * 0.036, 0.022, 0.02, g);
+    // scope
+    const tube = new THREE.Mesh(new THREE.CylinderGeometry(0.024, 0.024, 0.16, 20, 1, true).rotateX(Math.PI / 2), M.scope.clone());
+    tube.material.side = THREE.DoubleSide;
+    tube.position.set(0, SY, -0.06);
+    g.add(tube);
+    for (const z of [0.02, -0.14]) {
+      const lip = new THREE.Mesh(new THREE.TorusGeometry(0.025, 0.004, 6, 22), M.scope);
+      lip.position.set(0, SY, z);
+      g.add(lip);
+    }
+    for (const z of [-0.02, -0.1]) box(0.018, 0.03, 0.014, M.dark, 0, SY - 0.042, z, g);
+    const lens = new THREE.Mesh(new THREE.CircleGeometry(0.024, 24), M.lens);
+    lens.position.set(0, SY, -0.139);
+    g.add(lens);
+    const ret = new THREE.Mesh(new THREE.RingGeometry(0.008, 0.0089, 32), M.reticle);
+    ret.position.set(0, SY, -0.138);
+    g.add(ret);
+    for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+      const tick = new THREE.Mesh(new THREE.PlaneGeometry(dx ? 0.009 : 0.0008, dy ? 0.009 : 0.0008), M.reticle);
+      tick.position.set(dx * 0.0145, SY + dy * 0.0145, -0.138);
+      g.add(tick);
+    }
+    const dot = new THREE.Mesh(new THREE.CircleGeometry(0.0013, 10), M.dot);
+    dot.position.set(0, SY, -0.1375);
+    g.add(dot);
+    this.hands(g, H, M, [0.004, -0.085, 0.085], [-0.012, -0.03, -0.3]);
+    const muzzle = new THREE.Object3D();
+    muzzle.position.set(0, 0.018, -0.63);
+    g.add(muzzle);
+    const [flash, flash2] = this.makeFlash(g, muzzle.position);
+    flash.material.color.set('#7ad8ff');
+    flash.scale.setScalar(1.4);
+    mergeStatic(g, [flash, flash2]);
+    g.scale.setScalar(0.9);
+    g.visible = false;
+    return { g, muzzle, flash, flash2, ads: new THREE.Vector3(0, -SY * 0.9, -0.2) };
+  }
+
+  // choose the weapon of the player's class
+  setKind(kind) {
+    if (!this.models[kind]) kind = 'rifle';
+    this.kind = kind;
+    this.def = WEAPONS[kind];
+    for (const [k, m] of Object.entries(this.models)) m.g.visible = k === kind;
+    const m = this.models[kind];
+    this.cur = m;
+    this.gun = m.g;
+    this.mag = m.mag || null;
+    this.magHome = m.magHome || null;
+    this.muzzle = m.muzzle;
+    this.flash = m.flash;
+    this.flash2 = m.flash2;
+    this.adsPos = m.ads;
+    this.pendingHits = new Map();
+    this.pendingT = 0;
+    this.reset();
+  }
+
   reset() {
+    if (!this.kind) { this.kind = 'rifle'; this.def = WEAPONS.rifle; this.adsPos = ADS; this.cur = this.models.rifle; }
     this.ammo = this.stats.mag;
     this.reloading = 0;
     this.reloadTotal = 1;
@@ -385,11 +601,12 @@ export class Weapon {
 
   get stats() {
     const m = this.game.mods;
+    const d = this.def || WEAPONS.rifle;
     return {
-      damage: 22 * m.weaponDmg,
-      rate: 9 * m.fireRate,
-      mag: 30 + m.magBonus,
-      reload: 1.7 * m.reloadMult,
+      damage: d.damage * m.weaponDmg,
+      rate: d.rate * m.fireRate,
+      mag: Math.round(d.mag * m.magMult),
+      reload: d.reload * m.reloadMult,
       crit: m.critMult,
     };
   }
@@ -441,11 +658,14 @@ export class Weapon {
       }
     }
 
-    if (p.mouse.left && !building && !p.dead && this.cooldown <= 0 && this.reloading <= 0) {
+    const auto = this.def ? this.def.auto : true;
+    if (p.mouse.left && !building && !p.dead && this.cooldown <= 0 && this.reloading <= 0 && (auto || !this.held)) {
       if (this.ammo > 0) this.fire();
       else { this.startReload(); }
+      this.held = true;
     }
-    if (!p.mouse.left) this.shotsFired = 0;
+    if (!p.mouse.left) { this.shotsFired = 0; this.held = false; }
+    this.flushHits(dt);
 
     // --- animation
     const lowerTarget = building || p.dead ? 1 : p.sprinting ? 0.35 : 0;
@@ -474,7 +694,7 @@ export class Weapon {
     const reloadK = this.reloading > 0 ? 1 - this.reloading / this.reloadTotal : 0;
     const reloadTilt = this.reloading > 0 ? Math.sin(reloadK * Math.PI) : 0;
 
-    const pos = _n.copy(HIP).lerp(ADS, ads);
+    const pos = _n.copy(HIP).lerp(this.adsPos || ADS, ads);
     this.root.position.set(
       pos.x + this.sway.x + bx - this.lower * 0.05 + p.landKick * 0.0,
       pos.y + this.sway.y + by + breathe - this.lower * 0.22 - reloadTilt * 0.04 - p.landKick * 0.04,
@@ -486,8 +706,20 @@ export class Weapon {
       reloadTilt * 0.55 + this.sway.x * 2
     );
 
+    // pump action / pilot light
+    if (this.cur && this.cur.pump) {
+      const k = this.pumpT > 0 ? Math.sin(Math.min(1, this.pumpT) * Math.PI) : 0;
+      this.cur.pump.position.z = k * 0.07;
+      this.pumpT = Math.max(0, (this.pumpT || 0) - dt * 2.4);
+    }
+    if (this.cur && this.cur.pilot) {
+      const s = 0.8 + Math.random() * 0.5;
+      this.cur.pilot.scale.set(s, s, 0.8 + Math.random() * 0.8);
+    }
     // magazine out / in
-    if (this.reloading > 0) {
+    if (!this.mag) {
+      // no magazine to animate
+    } else if (this.reloading > 0) {
       const out = reloadK < 0.3 ? reloadK / 0.3 : reloadK < 0.6 ? 1 : 1 - (reloadK - 0.6) / 0.3;
       this.mag.position.set(this.magHome.x, this.magHome.y - Math.max(0, out) * 0.2, this.magHome.z + Math.max(0, out) * 0.05);
       this.mag.visible = !(reloadK > 0.28 && reloadK < 0.45);
@@ -506,6 +738,202 @@ export class Weapon {
   }
 
   fire() {
+    if (this.kind === 'shotgun') return this.fireShotgun();
+    if (this.kind === 'flamer') return this.fireFlamer();
+    if (this.kind === 'railgun') return this.fireRailgun();
+    return this.fireRifle();
+  }
+
+  // co-op client: damage goes to the host (flamethrower ticks are bundled)
+  sendHit(e, dmg, head = false, burn = 0) {
+    const net = this.game.net;
+    if (!net.isClient || !net.conn) return;
+    if (burn) {
+      const h = this.pendingHits.get(e.nid) || { d: 0, b: burn };
+      h.d += dmg;
+      this.pendingHits.set(e.nid, h);
+    } else net.conn.send({ t: 'hit', n: e.nid, d: Math.round(dmg * 10) / 10, c: head ? 1 : 0 });
+  }
+
+  flushHits(dt) {
+    if (!this.pendingHits || !this.pendingHits.size) return;
+    this.pendingT -= dt;
+    if (this.pendingT > 0) return;
+    this.pendingT = 0.15;
+    const net = this.game.net;
+    for (const [n, h] of this.pendingHits) if (net.conn) net.conn.send({ t: 'hit', n, d: Math.round(h.d * 10) / 10, c: 0, b: h.b });
+    this.pendingHits.clear();
+  }
+
+  // ray from the camera: closest hit (enemy, building, rock or ground)
+  aimRay(spread) {
+    const game = this.game;
+    const cam = game.r.camera;
+    cam.getWorldPosition(_origin);
+    cam.getWorldDirection(_dir);
+    _dir.x += (Math.random() - 0.5) * spread * 2;
+    _dir.y += (Math.random() - 0.5) * spread * 2;
+    _dir.z += (Math.random() - 0.5) * spread * 2;
+    _dir.normalize();
+    this.raycaster.set(_origin, _dir);
+    const gd = game.world.rayGround(_origin, _dir, 160);
+    this.raycaster.far = Math.min(220, gd);
+    const targets = game.enemies.hitMeshes.concat(game.build.solidMeshes, game.world.raycastables, game.core.hitMeshes);
+    const hits = this.raycaster.intersectObjects(targets, false);
+    this.raycaster.far = 220;
+    return { hits, gd };
+  }
+
+  kick(amount, side = 0.004) {
+    const p = this.game.player;
+    const ads = p.adsT;
+    p.pitch = Math.min(1.5, p.pitch + amount * (1 - ads * 0.45));
+    p.yaw += (Math.random() - 0.45) * side * (1 - ads * 0.5);
+  }
+
+  hitEnemy(e, point, dmg, head) {
+    const game = this.game;
+    game.enemies.damage(e, dmg, { crit: head, from: game.player.pos });
+    this.sendHit(e, dmg, head);
+    game.fx.burst(point, e.def.colors.blood, head ? 10 : 6, 4, 0.08);
+    game.hud.hitmarker(head, e.dead);
+    game.audio.hit(head);
+    game.audio.flesh(point);
+    if (e.dead) game.audio.kill();
+  }
+
+  fireShotgun() {
+    const game = this.game;
+    const st = this.stats;
+    const p = game.player;
+    this.ammo--;
+    this.cooldown = 1 / st.rate;
+    this.pumpT = 1;
+    this.kick(0.05, 0.02);
+    this.recoilV -= 3.2;
+    this.recoilRot += 0.16;
+    const spread = this.def.spread * (1 - p.adsT * 0.35) + this.spread;
+    const per = new Map();
+    this.muzzle.getWorldPosition(_muzzle);
+    let center = null;
+    for (let k = 0; k < this.def.pellets; k++) {
+      const { hits, gd } = this.aimRay(k === 0 ? this.spread : spread);
+      let hit = hits[0];
+      if (!hit && isFinite(gd)) hit = { point: _origin.clone().addScaledVector(_dir, gd), object: game.world.terrain };
+      const end = hit ? hit.point.clone() : _origin.clone().addScaledVector(_dir, 60);
+      if (!center) center = end.clone();
+      if (hit && hit.object.userData.enemy) {
+        const e = hit.object.userData.enemy;
+        const head = !!hit.object.userData.head;
+        const dist = hit.distance || end.distanceTo(_origin);
+        const fall = Math.max(0.25, 1 - Math.max(0, dist - 10) / this.def.range);
+        const r = per.get(e) || { dmg: 0, head: false, point: end };
+        r.dmg += st.damage * fall * (head ? 1.5 : 1) * (0.9 + Math.random() * 0.2);
+        r.head = r.head || head;
+        per.set(e, r);
+      } else if (hit && k % 2 === 0) {
+        game.fx.burst(end, hit.object.userData.structure ? '#ffd27a' : '#c9b8a0', 2, 3, 0.04);
+      }
+      if (k < 4) game.fx.tracer(_muzzle, end, '#ffe0a0', 0.012, 0.04);
+    }
+    for (const [e, r] of per) this.hitEnemy(e, r.point, r.dmg, r.head);
+    game.net.shot(_origin, center, 'shotgun');
+    game.fx.flash(_muzzle, '#ffb15a', 7, 0.06);
+    this.flash.material.opacity = 1;
+    this.flash.rotation.z = Math.random() * Math.PI;
+    game.audio.shotgun();
+  }
+
+  fireFlamer() {
+    const game = this.game;
+    const st = this.stats;
+    const p = game.player;
+    this.ammo--;
+    this.cooldown = 1 / st.rate;
+    const cam = game.r.camera;
+    cam.getWorldPosition(_origin);
+    cam.getWorldDirection(_dir);
+    this.muzzle.getWorldPosition(_muzzle);
+    const range = this.def.range;
+    const cosCone = Math.cos(this.def.cone);
+    const dmg = st.damage / st.rate;
+    const gd = game.world.rayGround(_origin, _dir, range + 2);
+    for (const e of game.enemies.list) {
+      if (e.dead || e.hidden) continue;
+      _p.set(e.pos.x, e.pos.y + e.barH * 0.45, e.pos.z).sub(_origin);
+      const d = _p.length();
+      if (d > range + e.def.radius || d < 0.01) continue;
+      if (_p.dot(_dir) / d < cosCone - e.def.radius / Math.max(d, 1) * 0.3) continue;
+      if (d > gd + 1) continue; // behind a wall
+      game.enemies.damage(e, dmg, { showNumber: Math.random() < 0.25, from: p.pos });
+      if (!game.net.isClient) { e.burn = Math.max(e.burn, 2); e.burnDps = Math.max(e.burnDps || 0, this.def.burn); }
+      this.sendHit(e, dmg, false, this.def.burn);
+      if (Math.random() < 0.15) game.hud.hitmarker(false, e.dead);
+    }
+    game.fx.flameStream(_muzzle, _dir.x, _dir.y, _dir.z, Math.min(range, gd), 3);
+    if (Math.random() < 0.3) game.fx.flash(_muzzle, '#ff8a3d', 5, 0.05);
+    this.recoilV -= 0.15;
+    this.shotsFired++;
+    if (this.shotsFired % 3 === 0) game.net.shot(_origin, _end.copy(_origin).addScaledVector(_dir, range), 'flamer');
+    game.audio.flamerFire();
+  }
+
+  fireRailgun() {
+    const game = this.game;
+    const st = this.stats;
+    const p = game.player;
+    this.ammo--;
+    this.cooldown = 1 / st.rate;
+    this.kick(0.07, 0.01);
+    this.recoilV -= 4;
+    this.recoilRot += 0.2;
+    const { hits, gd } = this.aimRay(this.spread * 0.3);
+    // pierces every alien on the line, stops at the first building, rock or the ground
+    const done = new Set();
+    let stop = isFinite(gd) ? gd : 160;
+    for (const h of hits) {
+      const e = h.object.userData.enemy;
+      if (!e) { stop = Math.min(stop, h.distance); break; }
+      if (done.has(e)) continue;
+      done.add(e);
+      const head = !!h.object.userData.head;
+      this.hitEnemy(e, h.point, st.damage * (head ? st.crit : 1) * (1 - done.size * 0.06), head);
+    }
+    _end.copy(_origin).addScaledVector(_dir, stop);
+    this.muzzle.getWorldPosition(_muzzle);
+    game.fx.tracer(_muzzle, _end, '#7ad8ff', 0.09, 0.28);
+    game.fx.tracer(_muzzle, _end, '#ffffff', 0.025, 0.18);
+    game.fx.flash(_muzzle, '#7ad8ff', 9, 0.1);
+    game.fx.burst(_end, '#7ad8ff', 8, 4, 0.07);
+    game.net.shot(_origin, _end, 'railgun');
+    this.flash.material.opacity = 1;
+    game.audio.railgun();
+    game.shake(0.15);
+  }
+
+  // what a teammate's shot looks like
+  remoteEffect(w, from, to) {
+    const game = this.game;
+    if (w === 'flamer') {
+      _q.subVectors(to, from).normalize();
+      for (let i = 0; i < 3; i++) game.fx.flameStream(from, _q.x, _q.y, _q.z, this.models && WEAPONS.flamer.range, 3);
+    } else if (w === 'railgun') {
+      game.fx.tracer(from, to, '#7ad8ff', 0.09, 0.28);
+      game.fx.muzzle(from, '#7ad8ff', 0.7);
+    } else if (w === 'shotgun') {
+      for (let i = 0; i < 4; i++) {
+        _q.set(to.x + (Math.random() - 0.5) * 1.5, to.y + (Math.random() - 0.5) * 1.5, to.z + (Math.random() - 0.5) * 1.5);
+        game.fx.tracer(from, _q, '#ffe0a0', 0.015, 0.05);
+      }
+      game.fx.muzzle(from, '#ffd27a', 0.8);
+    } else {
+      game.fx.tracer(from, to, '#fff0b0', 0.03, 0.06);
+      game.fx.muzzle(from, '#ffd27a', 0.5);
+    }
+    game.audio.remoteShot(from, w);
+  }
+
+  fireRifle() {
     const game = this.game;
     const st = this.stats;
     const p = game.player;
@@ -546,7 +974,7 @@ export class Weapon {
       const head = !!hit.object.userData.head;
       const dmg = st.damage * (head ? st.crit : 1) * (0.92 + Math.random() * 0.16);
       game.enemies.damage(e, dmg, { crit: head, from: p.pos });
-      if (game.net.isClient) game.net.conn && game.net.conn.send({ t: 'hit', n: e.nid, d: Math.round(dmg * 10) / 10, c: head ? 1 : 0 });
+      this.sendHit(e, dmg, head);
       game.fx.burst(hit.point, e.def.colors.blood, head ? 10 : 6, 4, 0.08);
       game.hud.hitmarker(head, e.dead);
       game.audio.hit(head);
@@ -558,7 +986,7 @@ export class Weapon {
     }
 
     this.muzzle.getWorldPosition(_muzzle);
-    game.net.shot(_origin, _end);
+    game.net.shot(_origin, _end, 'rifle');
     game.fx.tracer(_muzzle, _end, '#fff0b0', 0.02, 0.05);
     game.fx.flash(_muzzle, '#ffb15a', 4, 0.05);
     this.flash.material.opacity = 1;

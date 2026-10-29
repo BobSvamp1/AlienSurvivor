@@ -9,7 +9,8 @@ import { computeMods } from './data/upgrades.js';
 import { getMap, DIFFICULTIES } from './data/maps.js';
 import { WavePlanner } from './data/waves.js';
 import { ENEMIES } from './data/enemies.js';
-import { BUILD_ORDER } from './data/buildings.js';
+import { BUILDINGS } from './data/buildings.js';
+import { getClass, CLASSES } from './data/classes.js';
 import { World } from './world/world.js';
 import { Player } from './entities/player.js';
 import { Weapon } from './entities/weapon.js';
@@ -52,6 +53,7 @@ const game = {
   coreAlarmT: 0,
 };
 window.game = game; // handy for debugging in the browser console
+game.cls = CLASSES[game.settings.cls] ? game.settings.cls : 'marine';
 
 game.r = new Renderer(document.getElementById('app'));
 game.r.setQuality(game.settings.quality);
@@ -160,7 +162,7 @@ function warmup() {
   const temp = [];
   const wasInGame = game.inGame;
   for (const t of ['drone', 'spitter', 'bloater', 'queen', 'wasp', 'serpent', 'ravager', 'floater', 'bulwark']) temp.push(game.enemies.spawn(t, 0, -9999, { hp: 1, dmg: 1 }, false));
-  const models = BUILD_ORDER.map((t) => { const P = buildModel(t, 2); P.group.position.set(0, 0, -9990); game.r.scene.add(P.group); return P.group; });
+  const models = Object.keys(BUILDINGS).map((t) => { const P = buildModel(t, 2); P.group.position.set(0, 0, -9990); game.r.scene.add(P.group); return P.group; });
   game.fx.burst(new THREE.Vector3(0, -50, 0), '#fff', 4, 1, 0.1);
   game.enemies.updateLegs();
   try { game.r.renderer.compile(game.r.scene, game.r.camera); } catch { /* ignore */ }
@@ -328,7 +330,10 @@ game.startGame = (mapId, difficulty, opts = {}) => {
     // always rebuild the world for a fresh round
     if (game.world) { game.world.dispose(); game.world = null; }
     loadWorld(mapId);
-    game.upgrades.reset();
+    if (!CLASSES[game.cls]) game.cls = 'marine';
+    game.upgrades.reset(); // (also applies the class perk)
+    game.weapon.setKind(getClass(game.cls).weapon);
+    game.hud.buildHotbar(game.cls);
     // every run gets its own order of new aliens and wave themes
     game.planner = new WavePlanner((Math.random() * 2 ** 32) >>> 0, getMap(mapId).enemyBias || {});
     game.bestAtStart = bestWave(mapId, difficulty);
@@ -357,7 +362,7 @@ game.startGame = (mapId, difficulty, opts = {}) => {
     game.audio.setCombat(false);
     game.hud.show(true);
     game.hud.setDead(false);
-    game.hud.message('PREPARE DEFENSES', 'Red arrows show where the swarm will walk · build traps on their path (keys 2–0)', { kicker: game.world.map.name.toUpperCase(), dur: 4.5 });
+    game.hud.message('PREPARE DEFENSES', 'Red arrows show where the swarm will walk · build traps on their path (keys 2–8)', { kicker: game.world.map.name.toUpperCase(), dur: 4.5 });
     if (game.net.active) {
       game.net.beginSession();
       if (game.net.isHost) game.net.broadcast(game.net.startMsg());
@@ -504,7 +509,8 @@ game.closeArmory = () => {
 };
 
 // ------------------------------------------------------------ input
-const MODES = [null, ...BUILD_ORDER];
+// hotbar modes: the rifle (null), then the class's buildings
+const modes = () => [null, ...getClass(game.cls).build];
 
 game.onKey = (code) => {
   if (!game.inGame || game.over) return;
@@ -518,6 +524,7 @@ game.onKey = (code) => {
   if (p.dead) return;
   let n = parseInt(code.replace('Digit', ''), 10);
   if (n === 0) n = 10; // key 0 is the 10th slot
+  const MODES = modes();
   if (code.startsWith('Digit') && n >= 1 && n <= MODES.length) {
     game.build.setMode(MODES[n - 1]);
     if (n > 1) game.audio.click();
@@ -550,6 +557,7 @@ game.onMouseDown = (button) => {
 
 game.onWheel = (dir) => {
   if (!game.running || game.player.dead) return;
+  const MODES = modes();
   const i = MODES.indexOf(game.build.mode);
   game.build.setMode(MODES[(i + dir + MODES.length) % MODES.length]);
 };

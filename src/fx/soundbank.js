@@ -397,8 +397,77 @@ function spitHock(K) {
   w.connect(K.out);
 }
 
+// Scattergun: heavy boom, wide crack, pump clack-clack afterwards
+function shotgun(K) {
+  const { r, out } = K;
+  const bus = K.gain(1);
+  bus.connect(out);
+  const p = 1 + (r() - 0.5) * 0.06;
+  const crack = K.chain(K.noise(), K.filt('bandpass', 900 * p, 0.5), K.drive(5), K.gain(0));
+  K.env(crack.gain, [[0, 1.6], [0.04, 0.9], [0.35, 0.0001]]);
+  crack.connect(bus);
+  const body = K.chain(K.noise(), K.filt('lowpass', 1600), K.gain(0));
+  K.env(body.gain, [[0, 1.0], [0.1, 0.4], [0.5, 0.0001]]);
+  body.connect(bus);
+  const th = K.osc('sine', 110 * p);
+  K.env(th.frequency, [[0, 120 * p], [0.25, 34]]);
+  const thg = K.chain(th, K.drive(2.2), K.gain(0));
+  K.env(thg.gain, [[0, 1.1], [0.12, 0.5], [0.4, 0.0001]]);
+  thg.connect(bus);
+  // pump: two metallic clacks
+  for (const t of [0.42, 0.56]) {
+    const c = K.chain(K.noise(t), K.filt('bandpass', 3200 + r() * 400, 4), K.gain(0));
+    K.env(c.gain, [[t, 0.0001], [t + 0.002, 0.5], [t + 0.05, 0.0001]]);
+    c.connect(bus);
+    const o = K.osc('sine', 1900 + r() * 300, t);
+    const og = K.chain(o, K.gain(0));
+    K.env(og.gain, [[t, 0.0001], [t + 0.002, 0.12], [t + 0.07, 0.0001]]);
+    og.connect(bus);
+  }
+}
+
+// Rail cannon: rising capacitor whine, then a hard electric crack with a long ringing tail
+function railgun(K) {
+  const { r, out } = K;
+  const bus = K.gain(1);
+  bus.connect(out);
+  const crack = K.chain(K.noise(), K.filt('highpass', 1800), K.drive(6), K.gain(0));
+  K.env(crack.gain, [[0, 1.5], [0.03, 0.6], [0.25, 0.0001]]);
+  crack.connect(bus);
+  const z = K.osc('sawtooth', 5000);
+  K.env(z.frequency, [[0, 5200], [0.4, 120]]);
+  const zg = K.chain(z, K.filt('lowpass', 7000, 2), K.gain(0));
+  K.env(zg.gain, [[0, 0.5], [0.45, 0.0001]]);
+  zg.connect(bus);
+  const th = K.osc('sine', 80);
+  K.env(th.frequency, [[0, 95], [0.5, 30]]);
+  const thg = K.chain(th, K.drive(2), K.gain(0));
+  K.env(thg.gain, [[0, 1.0], [0.6, 0.0001]]);
+  thg.connect(bus);
+  // metallic ring
+  for (const [f, a] of [[1840, 0.12], [2930, 0.08], [4410, 0.05]]) {
+    const o = K.osc('sine', f * (1 + (r() - 0.5) * 0.02));
+    const og = K.chain(o, K.gain(0));
+    K.env(og.gain, [[0, a], [1.1, 0.0001]]);
+    og.connect(bus);
+  }
+}
+
+// Flamethrower burst (short, layered so it can be played back to back)
+function flameBurst(K) {
+  const roar = K.chain(K.noise(), K.filt('lowpass', 700), K.drive(1.5), K.gain(0));
+  K.env(roar.gain, [[0, 0.0001], [0.03, 0.9], [0.18, 0.7], [0.3, 0.0001]]);
+  roar.connect(K.out);
+  const hiss = K.chain(K.noise(), K.filt('bandpass', 2600, 0.6), K.gain(0));
+  K.env(hiss.gain, [[0, 0.0001], [0.02, 0.25], [0.3, 0.0001]]);
+  hiss.connect(K.out);
+}
+
 // ---------------------------------------------------------------------------
 const RECIPES = {
+  shotgun: { n: 3, dur: 0.75, fn: shotgun },
+  railgun: { n: 2, dur: 1.2, fn: railgun },
+  flameBurst: { n: 3, dur: 0.32, fn: flameBurst },
   rifle: { n: 4, dur: 0.9, fn: (K, v) => rifle(K, v) },
   gatling: { n: 3, dur: 0.15, fn: gatling },
   magOut: { n: 1, dur: 0.25, fn: magOut },

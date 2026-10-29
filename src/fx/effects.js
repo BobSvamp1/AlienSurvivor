@@ -333,6 +333,20 @@ export class Effects {
     this.glow.emit(p.x, p.y, p.z, this.rand(0.3), 1.5 + Math.random(), this.rand(0.3), _c, 0.35 + Math.random() * 0.2, 0.45, 0.1, 1, -2);
   }
 
+  // flamethrower stream in any direction (dx, dy, dz normalised)
+  flameStream(from, dx, dy, dz, range, n = 4) {
+    for (let i = 0; i < n; i++) {
+      const sp = range * (1.7 + Math.random() * 0.6);
+      const s = 0.13 + Math.random() * 0.08;
+      _c.setHSL(0.03 + Math.random() * 0.08, 1, 0.5 + Math.random() * 0.2).multiplyScalar(2.2);
+      this.glow.emit(from.x, from.y, from.z, (dx + this.rand(s)) * sp, (dy + this.rand(s)) * sp + 0.6, (dz + this.rand(s)) * sp, _c, 0.34 + Math.random() * 0.14, 0.12, 1.5, 0.9, -2.5, 1.7);
+    }
+    if (Math.random() < 0.3) {
+      _c.set('#3a3430');
+      this.soft.emit(from.x + dx * range * 0.8, from.y + dy * range * 0.8 + 0.4, from.z + dz * range * 0.8, dx, 1.2, dz, _c, 1.1, 0.7, 2, 0.3, -0.5, 1);
+    }
+  }
+
   flame(from, fx, fz, range, dt) {
     const n = Math.ceil(dt * 120);
     for (let i = 0; i < n; i++) {

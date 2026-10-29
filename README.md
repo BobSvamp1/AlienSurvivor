@@ -4,6 +4,7 @@ Co-op first-person trap defense in the browser (1–4 players). You are a strand
 
 - **Missions:** survive all waves (the last one is a double boss wave) and earn up to 3 stars. **Endless** mode never stops.
 - **Traps:** Spikes, Goo, Flame Vents (Goo + fire = IGNITE combo), Launch Pads (throw aliens into chasms), Laser Fences on the walls, plus turrets and barricades.
+- **Classes:** Marine (Pulse Rifle), Engineer (Scattergun), Pyro (Flamethrower) and Ranger (Rail Cannon), each with its own traps, defenses and perk.
 - **Jetpack:** hold Space in the air to hover.
 
 **Play:** https://bobsvamp1.github.io/aliensurvivor/

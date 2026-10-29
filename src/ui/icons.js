@@ -1,6 +1,8 @@
 // Small inline SVG icons (24x24, stroke based)
 const P = {
   rifle: '<path d="M2 13h13l3-3h4v3h-3l-1 2H9l-1 3H5l1-3H2z"/><path d="M8 10h4"/>',
+  shotgun: '<path d="M2 12h15l2-2h3v3h-4l-1 2h-4l-1 3H8l1-3H2z"/><path d="M10 15h4"/>',
+  railgun: '<path d="M2 12h6l2-2h12v2H11l-1 2H7l-1 3H3l1-3H2z"/><path d="M12 14h10M14 10V8M18 10V8"/>',
   barricade: '<rect x="3" y="7" width="18" height="11" rx="1"/><path d="M3 12h18M8 7v11M16 7v11"/>',
   gatling: '<circle cx="9" cy="14" r="4"/><path d="M13 12h8M13 14h8M13 16h8M9 10V6M6 21h6"/>',
   flamer: '<path d="M4 16h7l2-2h3"/><path d="M17 9c2 2 4 3 4 6a4 4 0 0 1-8 0c0-2 2-3 2-6 1 1 2 2 2 0z"/><rect x="3" y="13" width="5" height="6" rx="1"/>',

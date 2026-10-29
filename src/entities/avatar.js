@@ -95,7 +95,7 @@ function nameTag(name, color) {
 }
 
 export class Avatar {
-  constructor(scene, name, color) {
+  constructor(scene, name, color, cls = 'marine') {
     this.scene = scene;
     const M = mats(color);
     this.M = M;
@@ -229,18 +229,47 @@ export class Avatar {
     gun.scale.setScalar(1.25);
     aim.add(gun);
     this.gun = gun;
-    add(rbox(0.07, 0.11, 0.52, 0.02), M.dark, gun, 0, 0, 0);
-    add(rbox(0.075, 0.06, 0.26, 0.02), M.plate, gun, 0, 0.06, -0.08); // top cover
-    add(new THREE.CylinderGeometry(0.022, 0.026, 0.26, 12).rotateX(Math.PI / 2), M.dark, gun, 0, 0.01, -0.37); // barrel
-    add(new THREE.CylinderGeometry(0.034, 0.034, 0.08, 12).rotateX(Math.PI / 2), M.dark, gun, 0, 0.01, -0.48); // muzzle brake
+    const zr = (g) => g.rotateX(Math.PI / 2);
+    const weapon = { marine: 'rifle', engineer: 'shotgun', pyro: 'flamer', ranger: 'railgun' }[cls] || 'rifle';
+    let muzzleZ = -0.53;
     add(rbox(0.05, 0.16, 0.07, 0.015), M.dark, gun, 0, -0.12, 0.09); // grip
-    add(rbox(0.05, 0.18, 0.09, 0.015), M.dark, gun, 0, -0.13, -0.06); // magazine
     add(rbox(0.06, 0.1, 0.2, 0.02), M.dark, gun, 0, -0.01, 0.33); // stock
-    add(new THREE.CylinderGeometry(0.03, 0.03, 0.14, 12).rotateX(Math.PI / 2), M.dark, gun, 0, 0.12, 0.02); // scope
-    add(new THREE.CircleGeometry(0.026, 12), M.accent, gun, 0, 0.12, 0.092, false);
-    for (const sx of [-1, 1]) add(new THREE.BoxGeometry(0.006, 0.02, 0.24), M.accent, gun, sx * 0.039, 0.0, -0.08, false);
+    if (weapon === 'shotgun') {
+      add(rbox(0.075, 0.12, 0.34, 0.025), M.dark, gun, 0, 0, 0.02);
+      add(zr(new THREE.CylinderGeometry(0.026, 0.026, 0.46, 12)), M.dark, gun, 0, 0.03, -0.36); // barrel
+      add(zr(new THREE.CylinderGeometry(0.02, 0.02, 0.36, 10)), M.dark, gun, 0, -0.02, -0.31); // tube
+      add(rbox(0.08, 0.07, 0.17, 0.025), M.plate, gun, 0, -0.012, -0.26); // pump in the team colour
+      for (let k = 0; k < 3; k++) add(zr(new THREE.CylinderGeometry(0.01, 0.01, 0.05, 8)), M.accent, gun, 0.042, 0.0, 0.0 - k * 0.03, false);
+      muzzleZ = -0.6;
+    } else if (weapon === 'flamer') {
+      add(rbox(0.07, 0.1, 0.4, 0.02), M.dark, gun, 0, 0.0, -0.06);
+      add(zr(new THREE.CylinderGeometry(0.055, 0.055, 0.28, 16)), M.plate, gun, 0, -0.1, -0.06); // fuel tank
+      for (const z of [0.08, -0.2]) add(zr(new THREE.CylinderGeometry(0.058, 0.058, 0.02, 16)), M.dark, gun, 0, -0.1, z);
+      add(zr(new THREE.CylinderGeometry(0.03, 0.042, 0.12, 14)), M.dark, gun, 0, 0.01, -0.33); // nozzle
+      for (let k = 0; k < 3; k++) add(new THREE.TorusGeometry(0.03, 0.006, 6, 14), M.accent, gun, 0, 0.01, -0.22 - k * 0.04, false);
+      muzzleZ = -0.4;
+    } else if (weapon === 'railgun') {
+      add(rbox(0.075, 0.12, 0.4, 0.02), M.dark, gun, 0, 0.0, 0.02);
+      for (const sx of [-1, 1]) {
+        add(rbox(0.016, 0.04, 0.46, 0.006), M.plate, gun, sx * 0.028, 0.02, -0.4);
+        add(new THREE.BoxGeometry(0.006, 0.024, 0.42), M.accent, gun, sx * 0.019, 0.02, -0.4, false);
+      }
+      for (let k = 0; k < 4; k++) add(new THREE.TorusGeometry(0.04, 0.007, 6, 14), k % 2 ? M.accent : M.dark, gun, 0, 0.02, -0.24 - k * 0.09, false);
+      add(zr(new THREE.CylinderGeometry(0.026, 0.026, 0.18, 12)), M.dark, gun, 0, 0.12, -0.02); // scope
+      add(new THREE.CircleGeometry(0.022, 12), M.accent, gun, 0, 0.12, 0.072, false);
+      muzzleZ = -0.66;
+    } else {
+      add(rbox(0.07, 0.11, 0.52, 0.02), M.dark, gun, 0, 0, 0);
+      add(rbox(0.075, 0.06, 0.26, 0.02), M.plate, gun, 0, 0.06, -0.08); // top cover
+      add(zr(new THREE.CylinderGeometry(0.022, 0.026, 0.26, 12)), M.dark, gun, 0, 0.01, -0.37); // barrel
+      add(zr(new THREE.CylinderGeometry(0.034, 0.034, 0.08, 12)), M.dark, gun, 0, 0.01, -0.48); // muzzle brake
+      add(rbox(0.05, 0.18, 0.09, 0.015), M.dark, gun, 0, -0.13, -0.06); // magazine
+      add(zr(new THREE.CylinderGeometry(0.03, 0.03, 0.14, 12)), M.dark, gun, 0, 0.12, 0.02); // scope
+      add(new THREE.CircleGeometry(0.026, 12), M.accent, gun, 0, 0.12, 0.092, false);
+      for (const sx of [-1, 1]) add(new THREE.BoxGeometry(0.006, 0.02, 0.24), M.accent, gun, sx * 0.039, 0.0, -0.08, false);
+    }
     this.muzzle = new THREE.Object3D();
-    this.muzzle.position.set(0, 0.01, -0.53);
+    this.muzzle.position.set(0, 0.01, muzzleZ);
     gun.add(this.muzzle);
     // arms: shoulder -> elbow -> hand on the rifle (positions in the aim group)
     const arm = (sh, el, hand) => {

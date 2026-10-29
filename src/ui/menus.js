@@ -1,12 +1,13 @@
 import { icon } from './icons.js';
 import { MAPS, DIFFICULTIES } from '../data/maps.js';
 import { ENEMIES, ENEMY_ORDER } from '../data/enemies.js';
-import { BUILDINGS, BUILD_ORDER } from '../data/buildings.js';
+import { BUILDINGS } from '../data/buildings.js';
 import { UPGRADES, UPGRADE_TABS } from '../data/upgrades.js';
 import { NavGrid } from '../world/nav.js';
 import { Elevation } from '../world/elevation.js';
 import { mulberry32 } from '../core/rng.js';
 import { bestWave, bestStars, saveSettings } from '../core/settings.js';
+import { CLASSES, CLASS_ORDER, WEAPONS } from '../data/classes.js';
 
 const $ = (id) => document.getElementById(id);
 const SCREENS = ['main', 'coop', 'lobby', 'maps', 'settings', 'howto', 'pause', 'armory', 'over'];
@@ -53,6 +54,7 @@ export class Menus {
     $('armory-close').addEventListener('click', () => game.closeArmory());
 
     this.buildMapCards();
+    this.renderClassPickers();
     this.buildDifficulty();
     this.buildSettings();
     this.buildHowto();
@@ -154,6 +156,7 @@ export class Menus {
       const card = document.createElement('div');
       card.className = 'map-card';
       card.dataset.id = m.id;
+      card.title = m.description;
       const c = document.createElement('canvas');
       c.width = 360; c.height = 240;
       card.appendChild(c);
@@ -174,6 +177,41 @@ export class Menus {
       card.addEventListener('dblclick', () => this.game.startGame(m.id, this.difficulty, { endless: this.endless }));
       wrap.appendChild(card);
     }
+  }
+
+  // ------------------------------------------------------------ classes
+  renderClassPickers() {
+    const SLOT = { barricade: 'barricade', gatling: 'gatling', flamer: 'flamer', tesla: 'tesla', mortar: 'mortar', trap: 'trap', generator: 'generator', shield: 'shield', spikes: 'spikes', goo: 'goo', vent: 'vent', launcher: 'launcher', laser: 'laser' };
+    const WICON = { rifle: 'rifle', shotgun: 'shotgun', flamer: 'flamer', railgun: 'railgun' };
+    for (const id of ['class-picker-maps', 'class-picker-lobby']) {
+      const wrap = $(id);
+      if (!wrap) continue;
+      wrap.innerHTML = '';
+      for (const cid of CLASS_ORDER) {
+        const c = CLASSES[cid];
+        const b = document.createElement('button');
+        b.className = 'class-card' + (cid === this.game.cls ? ' sel' : '');
+        b.title = c.desc;
+        b.innerHTML = `<div class="cc-ico">${icon(WICON[c.weapon])}</div>
+          <div class="cc-name">${c.name.toUpperCase()}<em>${c.role.toUpperCase()}</em></div>
+          <div class="cc-weapon">${WEAPONS[c.weapon].name}</div>
+          <div class="cc-perk">${c.perk}</div>
+          <div class="cc-build">${c.build.map((t) => `<span title="${BUILDINGS[t].name}">${icon(SLOT[t])}</span>`).join('')}</div>`;
+        b.addEventListener('click', () => this.pickClass(cid));
+        wrap.appendChild(b);
+      }
+    }
+  }
+
+  pickClass(cid) {
+    const g = this.game;
+    if (g.inGame) return;
+    g.cls = cid;
+    g.settings.cls = cid;
+    saveSettings(g.settings);
+    g.net.setClass(cid);
+    g.audio.uiSelect();
+    this.renderClassPickers();
   }
 
   refreshMapCards() {
@@ -318,7 +356,8 @@ export class Menus {
       <div class="tips">
         <b>Goal:</b> keep the core alive. Aliens crawl out of the hives when night falls.<br>
         <b>Missions:</b> survive all waves (the last one is a double boss wave) to win. You earn up to 3 stars for how much of the core is left. <b>Endless</b> mode never stops, it just gets harder: how far can you get? A new kind of alien shows up every wave until you have met them all, in a different order every game, and every 5th wave brings a boss.<br>
-        <b>Co-op:</b> with more players the swarm gets bigger and tougher.<br>
+        <b>Classes:</b> pick one before a mission. <b>Marine</b> (Pulse Rifle, spikes, launch pads, gatlings, mortars), <b>Engineer</b> (Scattergun, shields, laser fences, tesla coils, shock traps, cheaper building), <b>Pyro</b> (Flamethrower, goo, flame vents, flame turrets, immune to acid) and <b>Ranger</b> (Rail Cannon that pierces every alien in a line, launch pads, lasers, mortars, double jetpack fuel).<br>
+        <b>Co-op:</b> every player picks a class, so mix them! With more players the swarm gets bigger and tougher. Crystals are shared.<br>
         <b>Jetpack:</b> hold <kbd>Space</kbd> in the air to hover for a few seconds, for example over a chasm. It refuels on the ground.<br>
         <b>Crystals</b> come from kills and from clearing waves. Spend them on buildings, building upgrades and the armory.<br>
         <b>Red arrows</b> on the ground show where the next wave will walk. Build your traps on that path.<br>
@@ -340,10 +379,12 @@ export class Menus {
           <div class="s">HP ${e.hp} · Speed ${e.speed}${e.flying ? ' · Flying' : ''}</div></div></div>`;
       }).join('') + '</div>';
     } else {
-      body.innerHTML = '<div class="cards">' + BUILD_ORDER.map((id, i) => {
+      const order = ['barricade', 'spikes', 'goo', 'vent', 'launcher', 'laser', 'trap', 'gatling', 'flamer', 'tesla', 'mortar', 'shield', 'generator'];
+      body.innerHTML = '<div class="cards">' + order.map((id) => {
         const b = BUILDINGS[id];
-        return `<div class="info-card"><div class="swatch" style="background:rgba(61,224,255,.12);color:var(--accent)">${icon(B_ICONS[id])}</div>
-          <div><div class="t">${b.name} <kbd>${i + 2}</kbd></div><div class="d">${b.desc}</div>
+        const who = CLASS_ORDER.filter((c) => CLASSES[c].build.includes(id)).map((c) => CLASSES[c].name);
+        return `<div class="info-card"><div class="swatch" style="background:rgba(61,224,255,.12);color:var(--accent)">${icon(B_ICONS[id] || id)}</div>
+          <div><div class="t">${b.name} <em style="font-style:normal;font-size:12px;letter-spacing:1px;color:var(--muted)">${who.length === 4 ? 'All classes' : who.join(' · ')}</em></div><div class="d">${b.desc}</div>
           <div class="s">Cost ${b.cost} ⬢${b.levels[0].power ? ' · ⚡' + b.levels[0].power : ''}${b.levels[0].supply ? ' · +⚡' + b.levels[0].supply : ''}${b.range ? ' · Range ' + b.range + 'm' : ''}${b.rotatable ? ' · Rotatable' : ''}</div></div></div>`;
       }).join('') + '</div>';
     }
@@ -438,7 +479,7 @@ export class Menus {
     const rows = [];
     for (let i = 0; i < 4; i++) {
       const p = net.players[i];
-      if (p) rows.push(`<div class="lp" style="--c:${p.color}"><i></i>${escapeHtml(p.name)}${p.id === net.myId ? ' (you)' : ''}<em>${p.id === 0 ? 'HOST' : 'READY'}</em></div>`);
+      if (p) rows.push(`<div class="lp" style="--c:${p.color}"><i></i>${escapeHtml(p.name)}${p.id === net.myId ? ' (you)' : ''}<span class="lp-cls">${(CLASSES[p.cls] || CLASSES.marine).name.toUpperCase()}</span><em>${p.id === 0 ? 'HOST' : 'READY'}</em></div>`);
       else rows.push('<div class="lp empty">waiting for player…</div>');
     }
     $('lobby-players').innerHTML = rows.join('');

@@ -289,10 +289,26 @@ export class Audio {
     this.noise(0.06, { type: 'bandpass', freq: 3000, q: 1.5, vol: 0.3 });
     this.tone(160, 40, 0.13, { type: 'square', vol: 0.18, lp: 900 });
   }
-  // a teammate's rifle, heard from where they stand
-  remoteShot(pos) {
+  shotgun() {
+    if (this.play('shotgun', { vol: 0.75, rate: 0.96 + Math.random() * 0.08 })) return;
+    this.noise(0.25, { type: 'lowpass', freq: 1400, vol: 0.7 });
+    this.tone(120, 35, 0.3, { type: 'sine', vol: 0.5 });
+  }
+  railgun() {
+    if (this.play('railgun', { vol: 0.7, rate: 0.97 + Math.random() * 0.06 })) return;
+    this.tone(4000, 200, 0.4, { type: 'sawtooth', vol: 0.2, lp: 6000 });
+    this.noise(0.2, { type: 'highpass', freq: 1500, vol: 0.5 });
+  }
+  flamerFire(pos = null) {
+    if (this.throttle(pos ? 'rflame' : 'flame1', 0.16)) return;
+    if (!this.play('flameBurst', { pos, vol: pos ? 0.4 : 0.5, rate: 0.9 + Math.random() * 0.2 })) this.noise(0.25, { type: 'lowpass', freq: 800, vol: 0.4, pos });
+  }
+  // a teammate's weapon, heard from where they stand
+  remoteShot(pos, kind = 'rifle') {
+    if (kind === 'flamer') { this.flamerFire(pos); return; }
     if (this.throttle('rshot', 0.05)) return;
-    if (!this.play('rifle', { pos, vol: 0.5, rate: 0.95 + Math.random() * 0.08 })) this.noise(0.08, { type: 'highpass', freq: 800, vol: 0.3, pos });
+    const name = kind === 'shotgun' ? 'shotgun' : kind === 'railgun' ? 'railgun' : 'rifle';
+    if (!this.play(name, { pos, vol: 0.5, rate: 0.95 + Math.random() * 0.08 })) this.noise(0.08, { type: 'highpass', freq: 800, vol: 0.3, pos });
   }
   dry() {
     if (this.throttle('dry', 0.15)) return;

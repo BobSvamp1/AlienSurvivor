@@ -12,6 +12,7 @@ export const DEFAULT_SETTINGS = {
   damageNumbers: true,
   invertY: false,
   screenShake: true,
+  cls: 'marine', // chosen class
 };
 
 function safeRead(key) {

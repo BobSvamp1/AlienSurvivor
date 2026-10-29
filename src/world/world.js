@@ -6,7 +6,7 @@ import { mulberry32, fbm } from '../core/rng.js';
 import { detailTextures, radialTexture } from './textures.js';
 import { triplanar, pbr } from '../core/materials.js';
 import { Mist, lightShaft } from './atmosphere.js';
-import { planClutter, buildClutter, cableGeometry, CLUTTER } from './clutter.js';
+import { planClutter, buildClutter, CLUTTER } from './clutter.js';
 
 let shared = null;
 function getShared() {
@@ -131,7 +131,6 @@ void main() {
   gl_FragColor = vec4(color * (f * 1.6 + bands * 0.15) * strength, 1.0);
 }`;
 
-let junctionGeo = null, junctionMat = null;
 
 export class World {
   constructor(game, map) {
@@ -1125,49 +1124,6 @@ export class World {
     // floating rings
     const rings = [];
     for (let i = 0; i < 2; i++) rings.push(add(new THREE.TorusGeometry(1.9 + i * 0.4, 0.04, 6, 64), glow, 0, 3.6, 0, false));
-    // thick cables from the base out across the ground
-    const cableMat = new THREE.MeshStandardMaterial({ color: '#16181c', roughness: 0.55, metalness: 0.1 });
-    for (let i = 0; i < 7; i++) {
-      const a = (i / 7) * Math.PI * 2 + 0.3;
-      let len = 6 + crng() * 6;
-      // keep cables on the level floor around the core (not up a wall or into a chasm)
-      const flatTo = (l) => {
-        for (let t = 3.3; t <= 3.3 + l + 0.5; t += 0.5) {
-          const k = (t - 3.3) / Math.max(l, 0.01);
-          const aa = a + 0.2 * k;
-          const x = cx + Math.cos(aa) * t, z = cz + Math.sin(aa) * t;
-          if (Math.abs(this.elev.at(x, z) - coreY) > 0.15) return false;
-          const ci = this.nav.ci(x), cj = this.nav.cj(z);
-          if (!this.nav.inside(ci, cj) || this.nav.blocked[this.nav.idx(ci, cj)]) return false;
-        }
-        return true;
-      };
-      while (len > 1.5 && !flatTo(len)) len -= 0.75;
-      if (len <= 1.5) continue;
-      const geo = cableGeometry(
-        { x: Math.cos(a) * 3.3, z: Math.sin(a) * 3.3 },
-        { x: Math.cos(a + 0.2) * (3.3 + len), z: Math.sin(a + 0.2) * (3.3 + len) },
-        { radius: 0.07 + crng() * 0.04, liftA: 0.5, liftB: 0.06, wiggle: 0.8, seed: i + 1, sinkB: true }
-      );
-      const c = new THREE.Mesh(geo, cableMat);
-      c.receiveShadow = true;
-      c.castShadow = true;
-      g.add(c);
-      // the cable plugs into a small junction box half buried in the ground
-      const ex = Math.cos(a + 0.2) * (3.3 + len), ez = Math.sin(a + 0.2) * (3.3 + len);
-      const dx = ex - Math.cos(a) * 3.3, dz = ez - Math.sin(a) * 3.3, dl = Math.hypot(dx, dz);
-      const jb = new THREE.Group();
-      jb.position.set(ex + (dx / dl) * 0.22, 0, ez + (dz / dl) * 0.22);
-      jb.rotation.y = Math.atan2(dx, dz);
-      const box = new THREE.Mesh(junctionGeo || (junctionGeo = new THREE.BoxGeometry(0.42, 0.3, 0.5)), junctionMat || (junctionMat = new THREE.MeshStandardMaterial({ color: '#2a2e33', roughness: 0.6, metalness: 0.6 })));
-      box.position.y = 0.1;
-      box.castShadow = true;
-      box.receiveShadow = true;
-      const lamp = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.025, 0.06), glow);
-      lamp.position.set(0, 0.255, 0.1);
-      jb.add(box, lamp);
-      g.add(jb);
-    }
     // energy beam into the sky
     const beamMat = new THREE.MeshBasicMaterial({
       color: '#b07aff', transparent: true, opacity: 0.3, blending: THREE.AdditiveBlending, depthWrite: false,

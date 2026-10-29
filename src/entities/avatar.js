@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { mocap, Pose, clipDuration } from './mocap.js';
 import { wornMetal, texSet } from '../core/materials.js';
 import { mergeGeos } from '../core/geomerge.js';
 import { groundAt } from '../world/elevation.js';
@@ -153,6 +154,10 @@ function nameTag(name, color) {
   s.renderOrder = 10;
   return s;
 }
+
+const _pq = new THREE.Quaternion();
+const _X = new THREE.Vector3(1, 0, 0);
+const _I = new THREE.Quaternion();
 
 export class Avatar {
   constructor(scene, name, color, cls = 'marine') {
@@ -596,6 +601,15 @@ export class Avatar {
       if (jet) f.scale.set(1, 0.75 + Math.random() * 0.5, 1);
     }
 
+    const M = mocap();
+    if (M) {
+      this.animate(dt, M, speed, pitch, dead);
+      this.downT += ((dead ? 1 : 0) - this.downT) * Math.min(1, dt * 5);
+      r.rotation.x = 0;
+      r.position.y = pos.y;
+      this.tag.visible = this.downT < 0.5;
+      return;
+    }
     // walking cycle (backwards when walking backwards)
     const moving = Math.min(1, speed / 5) * (1 - this.airT);
     const dir = this.fwdS < -0.3 ? -1 : 1;
@@ -622,6 +636,46 @@ export class Avatar {
     r.rotation.x = -this.downT * 1.45;
     r.position.y = pos.y + this.downT * 0.25;
     this.tag.visible = this.downT < 0.5;
+  }
+
+  // motion-capture driven pose: locomotion blended by move direction, jump and death
+  animate(dt, M, speed, pitch, dead) {
+    const C = M.clips;
+    const P = this.pose || (this.pose = new Pose());
+    P.reset();
+    // knocked down: the death clip plays once (and runs backwards when revived)
+    this.deadT = dead ? (this.deadT || 0) + dt : Math.max(0, (this.deadT || 0) - dt * 3);
+    const wDead = C.death ? Math.min(1, this.deadT * 6) : 0;
+    const alive = 1 - wDead;
+    // locomotion: all cycles share one phase; cadence rises with speed
+    const mv = Math.min(1, speed / 2.2) * (1 - this.airT);
+    this.phase = ((this.phase || 0) + dt * (0.55 + speed * 0.16)) % 1;
+    const f = this.fwdS, sd = this.sideS;
+    let wf = Math.max(0, f), wb = Math.max(0, -f), wl = Math.max(0, -sd), wr = Math.max(0, sd);
+    const sum = wf + wb + wl + wr || 1;
+    wf /= sum; wb /= sum; wl /= sum; wr /= sum;
+    const cyc = (clip, w) => { const c = clip || C.walk; P.add(c, this.phase * clipDuration(c), true, w * mv * alive); };
+    cyc(C.walk, wf); cyc(C.back, wb); cyc(C.strafe_l, wl); cyc(C.strafe_r, wr);
+    P.add(C.idle, this.t, true, (1 - mv) * (1 - this.airT) * alive);
+    // in the air: hold a frame of the jump (tucked going up, reaching down when falling)
+    if (C.jump) P.add(C.jump, (this.vy > 0.5 ? 0.32 : 0.5) * clipDuration(C.jump), false, this.airT * alive);
+    if (wDead) P.add(C.death, this.deadT, false, wDead);
+    P.finish();
+    // longer strides when running fast
+    const k = 1 + 0.55 * THREE.MathUtils.clamp((speed - 3) / 6, 0, 1) * mv;
+    const L = 0.93;
+    this.hips.quaternion.copy(P.q.hips);
+    this.hips.position.set(P.hx * L, 0.96 + P.hy * L, P.hz * L);
+    this.torso.quaternion.copy(P.q.torso);
+    _pq.setFromAxisAngle(_X, pitch * 0.15 * alive);
+    this.chest.quaternion.copy(P.q.chest).multiply(_pq);
+    _pq.setFromAxisAngle(_X, pitch * 0.5 * alive);
+    this.head.quaternion.copy(P.q.head).multiply(_pq);
+    const [lL, lR] = this.legs[0].side < 0 ? this.legs : [this.legs[1], this.legs[0]];
+    const set = (obj, q, kk = 1) => { if (kk === 1) obj.quaternion.copy(q); else obj.quaternion.slerpQuaternions(_I, q, kk); };
+    set(lL.hip, P.q.lhip, k); set(lL.knee, P.q.lknee, k); set(lL.ankle, P.q.lankle);
+    set(lR.hip, P.q.rhip, k); set(lR.knee, P.q.rknee, k); set(lR.ankle, P.q.rankle);
+    if (this.cape) this.cape.rotation.x = 0.08 + mv * 0.55 * Math.max(0, f) + this.airT * 0.7 + Math.sin(this.t * 2.3) * 0.04;
   }
 
   muzzleWorld(out) { this.muzzle.getWorldPosition(out); return out; }

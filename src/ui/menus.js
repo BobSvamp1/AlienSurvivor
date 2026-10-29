@@ -8,6 +8,7 @@ import { Elevation } from '../world/elevation.js';
 import { mulberry32 } from '../core/rng.js';
 import { bestWave, bestStars, saveSettings } from '../core/settings.js';
 import { CLASSES, CLASS_ORDER, WEAPONS } from '../data/classes.js';
+import { ABILITIES } from '../entities/abilities.js';
 
 const $ = (id) => document.getElementById(id);
 const SCREENS = ['main', 'heroes', 'coop', 'lobby', 'maps', 'settings', 'howto', 'pause', 'armory', 'over'];
@@ -227,6 +228,7 @@ export class Menus {
       <div class="hi-desc">${c.desc}</div>
       <div class="hi-stats">${STAT.map(([k, l]) => `<div class="hs"><span>${l}</span><div class="hs-bar">${[1, 2, 3, 4, 5].map((n) => `<i class="${n <= c.stats[k] ? 'on' : ''}"></i>`).join('')}</div></div>`).join('')}</div>
       <div class="hi-block"><div class="hb-ico">${icon(WICON[c.weapon])}</div><div><div class="hb-kicker">WEAPON</div><div class="hb-t">${w.name}</div><div class="hb-d">${w.desc}</div></div></div>
+      <div class="hi-block"><div class="hb-ico">${icon(ABILITIES[g.cls].icon)}</div><div><div class="hb-kicker">ABILITY <kbd>Q</kbd> · ${ABILITIES[g.cls].cd} S COOLDOWN</div><div class="hb-t">${ABILITIES[g.cls].name}</div><div class="hb-d">${ABILITIES[g.cls].desc}</div></div></div>
       <div class="hi-block"><div class="hb-ico">${icon('up')}</div><div><div class="hb-kicker">PERK</div><div class="hb-d strong">${c.perk}</div></div></div>
       <div class="hb-kicker" style="margin-top:12px">TRAPS &amp; DEFENSES</div>
       <div class="hi-build">${c.build.map((t) => `<div class="hib">${icon(SLOT_ICON[t])}<span>${BUILDINGS[t].short}</span></div>`).join('')}</div>`;
@@ -374,6 +376,7 @@ export class Menus {
         <div><span class="k">${K('1')}</span>Rifle</div>
         <div><span class="k">${K('2')}–${K('0')}</span>Choose a trap / building</div>
         <div><span class="k">${K('Wheel')}</span>Cycle buildings</div>
+        <div><span class="k">${K('Q')}</span>Class ability</div>
         <div><span class="k">${K('E')}</span>Upgrade aimed building</div>
         <div><span class="k">${K('F')}</span>Repair aimed building</div>
         <div><span class="k">${K('T')}</span>Rotate aimed building</div>
@@ -386,6 +389,7 @@ export class Menus {
         <b>Goal:</b> keep the core alive. Aliens crawl out of the hives when night falls.<br>
         <b>Missions:</b> survive all waves (the last one is a double boss wave) to win. You earn up to 3 stars for how much of the core is left. <b>Endless</b> mode never stops, it just gets harder: how far can you get? A new kind of alien shows up every wave until you have met them all, in a different order every game, and every 5th wave brings a boss.<br>
         <b>Classes:</b> pick one before a mission. <b>Marine</b> (Pulse Rifle, spikes, launch pads, gatlings, mortars), <b>Engineer</b> (Scattergun, shields, laser fences, tesla coils, shock traps, cheaper building), <b>Pyro</b> (Flamethrower, goo, flame vents, flame turrets, immune to acid) and <b>Ranger</b> (Rail Cannon that pierces every alien in a line, launch pads, lasers, mortars, double jetpack fuel).<br>
+        <b>Abilities</b> (<kbd>Q</kbd>, aim at the ground): Marine <b>Airstrike</b>, Engineer <b>Sentry Drop</b>, Pyro <b>Napalm Strike</b> (burning ground), Ranger <b>Gravity Well</b> (pulls aliens together, great next to a chasm).<br>
         <b>Co-op:</b> every player picks a class, so mix them! With more players the swarm gets bigger and tougher. Crystals are shared.<br>
         <b>Jetpack:</b> hold <kbd>Space</kbd> in the air to hover for a few seconds, for example over a chasm. It refuels on the ground.<br>
         <b>Crystals</b> come from kills and from clearing waves. Spend them on buildings, building upgrades and the armory.<br>

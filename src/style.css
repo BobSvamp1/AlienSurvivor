@@ -131,6 +131,16 @@ kbd {
 #reload-hint.show { opacity: 1; animation: blink 0.8s infinite; }
 @keyframes blink { 50% { opacity: 0.4; } }
 
+#ability { position: absolute; right: 40px; bottom: 128px; display: flex; flex-direction: column; align-items: center; gap: 4px; }
+#ability .ab-box { position: relative; width: 70px; height: 70px; display: grid; place-items: center; background: rgba(8, 12, 26, 0.7); border: 2px solid rgba(255, 255, 255, 0.25); transform: skewX(-10deg); overflow: hidden; }
+#ability .ab-ico { color: var(--hero, #ff9b2f); transform: skewX(10deg); }
+#ability .ab-ico svg, #ability .ab-ico .ico { width: 40px; height: 40px; }
+#ability .ab-cd { position: absolute; inset: 0; background: conic-gradient(rgba(0, 0, 0, 0.7) calc(var(--p, 0) * 360deg), transparent 0); }
+#ability .ab-time { position: absolute; font-family: var(--display, var(--head)); font-size: 34px; color: #fff; transform: skewX(10deg); text-shadow: 0 2px 6px #000; }
+#ability .ab-key { font-family: var(--head); font-size: 12px; font-weight: 700; padding: 1px 7px; border: 1px solid rgba(255, 255, 255, 0.4); border-radius: 3px; background: rgba(0, 0, 0, 0.4); margin-top: -12px; z-index: 1; }
+#ability .ab-name { font-family: var(--head); font-size: 11px; letter-spacing: 2px; color: var(--muted); }
+#ability.ready .ab-box { border-color: var(--hero, #ff9b2f); box-shadow: 0 0 22px rgba(255, 155, 47, 0.55); animation: abReady 1.6s infinite; }
+@keyframes abReady { 50% { box-shadow: 0 0 8px rgba(255, 155, 47, 0.3); } }
 #hotbar { position: absolute; bottom: 24px; left: 50%; transform: translateX(-50%); display: flex; gap: 6px; }
 .slot {
   position: relative; width: 82px; height: 78px; padding: 8px 4px 6px; background: var(--panel); border: 1px solid var(--line);
@@ -370,6 +380,7 @@ input[type='range']::-moz-range-thumb { width: 14px; height: 20px; background: v
 @media (max-width: 1180px) {
   #health { bottom: 118px; }
   #ammo-box { bottom: 118px; }
+  #ability { bottom: 210px; }
 }
 
 /* ---------------- co-op ---------------- */

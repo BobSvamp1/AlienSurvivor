@@ -289,6 +289,25 @@ export class Audio {
     this.noise(0.06, { type: 'bandpass', freq: 3000, q: 1.5, vol: 0.3 });
     this.tone(160, 40, 0.13, { type: 'square', vol: 0.18, lp: 900 });
   }
+  // class ability: a short radio chirp
+  ability() {
+    if (!this.ctx) return;
+    const t = this.ctx.currentTime;
+    this.tone(1200, 1600, 0.06, { type: 'square', vol: 0.08 });
+    this.tone(1600, 1600, 0.06, { type: 'square', vol: 0.08, at: t + 0.09 });
+    this.noise(0.25, { type: 'bandpass', freq: 2500, q: 2, vol: 0.06, at: t + 0.02 });
+  }
+  // a shell whistling down
+  incoming(pos) {
+    this.tone(2400, 500, 1.2, { type: 'sine', vol: 0.18, pos });
+    this.noise(1.1, { type: 'bandpass', freq: 3000, q: 6, vol: 0.05, pos });
+  }
+  // gravity well: a deep, sucking hum
+  well(pos) {
+    this.tone(60, 140, 3.8, { type: 'sawtooth', vol: 0.18, pos, lp: 400 });
+    this.tone(900, 120, 3.8, { type: 'sine', vol: 0.06, pos });
+    this.noise(3.8, { type: 'lowpass', freq: 300, vol: 0.2, pos });
+  }
   shotgun() {
     if (this.play('shotgun', { vol: 0.75, rate: 0.96 + Math.random() * 0.08 })) return;
     this.noise(0.25, { type: 'lowpass', freq: 1400, vol: 0.7 });

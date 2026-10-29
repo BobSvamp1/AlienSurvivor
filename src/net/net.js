@@ -219,6 +219,7 @@ export class Net {
       game.fx.dust(s.x, s.z, 1.2);
     } else if (m.a === 'upgrade') { const s = sAt(); if (s) b.upgrade(s, this.clsOf(id)); }
     else if (m.a === 'repair') { const s = sAt(); if (s) b.repair(s, true); }
+    else if (m.a === 'ability') game.abilities.cast(this.clsOf(id), +m.x, +m.z, +m.yaw || 0);
     else if (m.a === 'sell') { const s = sAt(); if (s) b.sell(s, true); }
     else if (m.a === 'turn') { const s = sAt(); if (s) b.turn(s); }
     else if (m.a === 'wave') { if (game.phase === 'build') { game.startWave(); game.hud.toast(`${who} started the wave`); } }
@@ -511,6 +512,7 @@ export class Net {
       case 'boom': g.fx.explosion(_v.set(e.x, e.y, e.z), e.c || '#ffb43d', e.r); g.audio.explosion(_v, e.s || 1); break;
       case 'toast': g.hud.toast(e.m, e.kind); break;
       case 'label': g.fx.label(e.x, e.y, e.z, e.t, e.c); break;
+      case 'abm': case 'zone': case 'well': g.abilities.onEvent(e); break;
       case 'sound': if (g.audio[e.n]) g.audio[e.n](e.p ? _v.set(e.p[0], 0, e.p[1]) : undefined); break;
       default: break;
     }

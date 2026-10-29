@@ -1,6 +1,7 @@
 import { icon } from './icons.js';
 import { BUILDINGS } from '../data/buildings.js';
 import { getClass, WEAPONS } from '../data/classes.js';
+import { ABILITIES } from '../entities/abilities.js';
 const WEAPON_ICONS = { rifle: 'rifle', shotgun: 'shotgun', flamer: 'flamer', railgun: 'railgun' };
 
 const $ = (id) => document.getElementById(id);
@@ -66,6 +67,12 @@ export class Hud {
     this.slotEls = [...this.el.hotbar.children];
     const wn = document.getElementById('weapon-name');
     if (wn) wn.textContent = wdef.name;
+    const ab = ABILITIES[clsId] || ABILITIES.marine;
+    const ae = document.getElementById('ability');
+    if (ae) {
+      ae.querySelector('.ab-ico').innerHTML = icon(ab.icon);
+      ae.querySelector('.ab-name').textContent = ab.name;
+    }
     this.cache = {};
   }
 
@@ -81,7 +88,8 @@ export class Hud {
   sty(key, el, prop, value) {
     if (this.cache[key] === value) return;
     this.cache[key] = value;
-    el.style[prop] = value;
+    if (prop.startsWith('--')) el.style.setProperty(prop, value);
+    else el.style[prop] = value;
   }
 
   tog(key, el, cls, on) {
@@ -226,6 +234,16 @@ export class Hud {
     this.tog('t23', el.reloadBar, 'show', w.reloading > 0);
     if (w.reloading > 0) this.sty('s9', el.reloadBar.firstElementChild, 'transform', `scaleX(${1 - w.reloading / w.reloadTotal})`);
     this.tog('t24', el.reloadHint, 'show', w.reloading <= 0 && w.ammo < w.stats.mag * 0.25);
+
+    // class ability
+    const ab = g.abilities;
+    if (ab) {
+      const ae = this.el.ability || (this.el.ability = document.getElementById('ability'));
+      const f = ab.cd > 0 ? ab.cd / ab.def.cd : 0;
+      this.sty('sab', ae, '--p', Math.round(f * 100) / 100);
+      this.set('abt', ae.querySelector('.ab-time'), ab.cd > 0 ? String(Math.ceil(ab.cd)) : '');
+      this.tog('tab', ae, 'ready', ab.cd <= 0);
+    }
 
     // hotbar
     const mode = g.build.mode || 'gun';

@@ -124,6 +124,13 @@ export const BUILDINGS = {
   },
 };
 
+// the Engineer's Sentry Drop ability (temporary, free, not on the hotbar)
+BUILDINGS.sentry = {
+  name: 'Sentry', short: 'Sentry', cost: 0, solid: true, navCost: 12, turret: true, range: 19, air: true, rotatable: false,
+  desc: 'Temporary auto-turret dropped by an Engineer.',
+  levels: [{ hp: 380, dmg: 11, rate: 9 }],
+};
+
 // Power the core provides on its own (more from generators and the Core Reactor upgrade)
 export const CORE_POWER = 15;
 

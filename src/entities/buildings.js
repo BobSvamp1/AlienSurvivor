@@ -113,6 +113,21 @@ function turretBase(g, level) {
 
 // Builds the 3D model for a building at a given level (0-2)
 export function buildModel(type, level) {
+  if (type === 'sentry') {
+    // a gatling on a drop pod with a blinking beacon
+    const P = buildModel('gatling', 0);
+    const m = mats();
+    const pod = part(P.group, new THREE.CylinderGeometry(0.9, 1.05, 0.35, 8), m.dark, 0, 0.17, 0);
+    pod.castShadow = true;
+    for (let k = 0; k < 3; k++) {
+      const a = (k / 3) * Math.PI * 2;
+      const leg = part(P.group, box(0.14, 0.12, 0.9), m.plate, Math.sin(a) * 0.9, 0.1, Math.cos(a) * 0.9);
+      leg.rotation.y = a;
+    }
+    P.beacon = part(P.group, new THREE.SphereGeometry(0.09, 10, 8), new THREE.MeshStandardMaterial({ color: '#3de0ff', emissive: '#3de0ff', emissiveIntensity: 3, toneMapped: false }), 0.45, 1.75, 0.3, false);
+    P.group.scale.setScalar(0.85);
+    return P;
+  }
   const m = mats();
   const g = new THREE.Group();
   const P = { group: g, solid: [], muzzles: [] };
@@ -961,6 +976,17 @@ export class BuildSystem {
       if (this.arcMesh) this.arcMesh.visible = false;
     }
 
+    // temporary buildings (Engineer sentries) run out
+    for (let i = this.structures.length - 1; i >= 0; i--) {
+      const s = this.structures[i];
+      if (s.temp === undefined) continue;
+      s.temp -= dt;
+      if (s.parts.beacon) s.parts.beacon.visible = s.temp > 5 || Math.sin(s.temp * 12) > 0;
+      if (s.temp <= 0 && !game.net.isClient) {
+        game.fx.explosion(_v.set(s.x, s.y + 0.8, s.z), '#3de0ff', 1.4);
+        this.remove(s);
+      }
+    }
     for (const s of this.structures) {
       if (s.rise < 1) {
         s.rise = Math.min(1, s.rise + dt * 3.5);
@@ -970,7 +996,7 @@ export class BuildSystem {
       }
       if (s.offline) {
         this.updateOffline(s, dt);
-      } else if (s.type === 'gatling') this.updateGatling(s, dt);
+      } else if (s.type === 'gatling' || s.type === 'sentry') this.updateGatling(s, dt);
       else if (s.type === 'generator') this.updateGenerator(s, dt);
       else if (s.type === 'flamer') this.updateFlamer(s, dt);
       else if (s.type === 'tesla') this.updateTesla(s, dt);

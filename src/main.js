@@ -23,6 +23,7 @@ import { Menus } from './ui/menus.js';
 import { veinClock } from './world/textures.js';
 import { Net } from './net/net.js';
 import { Showcase } from './ui/showcase.js';
+import { Abilities } from './entities/abilities.js';
 
 const FIRST_BUILD_TIME = 180;
 const BUILD_TIME = 180; // 3 minutes to build between waves (G starts the next wave early)
@@ -69,6 +70,7 @@ game.weapon = new Weapon(game);
 game.hud = new Hud(game);
 game.net = new Net(game);
 game.showcase = new Showcase(game);
+game.abilities = new Abilities(game);
 game.menus = new Menus(game);
 
 // in co-op the world keeps running while someone is in a menu
@@ -335,6 +337,7 @@ game.startGame = (mapId, difficulty, opts = {}) => {
     if (!CLASSES[game.cls]) game.cls = 'marine';
     game.upgrades.reset(); // (also applies the class perk)
     game.weapon.setKind(getClass(game.cls).weapon);
+    game.abilities.reset();
     game.hud.buildHotbar(game.cls);
     // every run gets its own order of new aliens and wave themes
     game.planner = new WavePlanner((Math.random() * 2 ** 32) >>> 0, getMap(mapId).enemyBias || {});
@@ -343,7 +346,6 @@ game.startGame = (mapId, difficulty, opts = {}) => {
     const [ox, oz] = game.net.active ? game.net.spawnOffset() : [0, 0];
     game.player.reset(map.spawn[0] + ox, map.spawn[1] + oz);
     game.player.faceTowards(map.core[0], map.core[1] - 30);
-    if (map.id === 'canyon') game.player.faceTowards(0, -20);
     game.weapon.reset();
     game.core.maxHp = 1500;
     game.core.hp = game.core.maxHp;
@@ -531,7 +533,7 @@ game.onKey = (code) => {
     game.build.setMode(MODES[n - 1]);
     if (n > 1) game.audio.click();
   }
-  if (code === 'KeyQ') game.build.setMode(null);
+  if (code === 'KeyQ') game.abilities.use(); // class special ability
   if (code === 'KeyR') {
     if (game.build.mode) game.build.rotate();
     else game.weapon.startReload();
@@ -609,6 +611,7 @@ function step(dt) {
     updateShake(dt);
     game.player.update(dt);
     game.weapon.update(dt);
+    game.abilities.update(dt);
     game.build.update(dt);
     veinClock.value += dt;
     if (game.net.isClient) {
@@ -647,7 +650,7 @@ game.step = step; // used by automated tests
 game.startWave = startWave;
 
 // ------------------------------------------------------------ boot
-loadWorld('crash');
+loadWorld('outpost');
 game.world.nightTarget = 0.35;
 game.menus.reset('main');
 setTimeout(() => fade.classList.add('out'), 100);

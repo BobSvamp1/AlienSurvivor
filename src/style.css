@@ -434,3 +434,77 @@ input[type='range']::-moz-range-thumb { width: 14px; height: 20px; background: v
 #intro-card .ic-name { font-family: var(--head); font-style: italic; font-weight: 700; font-size: 26px; letter-spacing: 2px; line-height: 1.1; }
 #intro-card .ic-desc { font-size: 15px; color: var(--muted); line-height: 1.3; margin-top: 2px; }
 .dmg.combo { font-size: 28px; font-style: italic; letter-spacing: 2px; white-space: nowrap; text-shadow: 0 0 12px rgba(0, 0, 0, 0.9), 0 2px 4px #000; }
+
+/* ===================== HERO-SHOOTER MENU STYLE ===================== */
+:root { --display: 'Teko', 'Chakra Petch', 'Segoe UI', sans-serif; --hero: #ff9b2f; --hero-2: #ffc35a; }
+#menu-bg { background: linear-gradient(90deg, rgba(3, 6, 16, 0.9) 0%, rgba(3, 6, 16, 0.62) 30%, rgba(3, 6, 16, 0) 58%), linear-gradient(0deg, rgba(3, 6, 16, 0.7) 0%, rgba(3, 6, 16, 0) 30%); }
+#menu-bg.hero { background: linear-gradient(90deg, rgba(3, 6, 16, 0.92) 0%, rgba(3, 6, 16, 0.75) 38%, rgba(3, 6, 16, 0) 62%), linear-gradient(0deg, rgba(3, 6, 16, 0.6) 0%, rgba(3, 6, 16, 0) 25%); }
+#screen-main { padding-left: clamp(24px, 6vw, 90px); }
+#screen-main .kicker { color: var(--hero); letter-spacing: 6px; }
+.logo { font-family: var(--display); font-style: normal; font-weight: 700; font-size: clamp(84px, 13vh, 150px); line-height: 0.78; letter-spacing: 2px; margin: 14px 0 34px; text-transform: uppercase; transform: skewX(-8deg); transform-origin: left bottom; text-shadow: 0 6px 30px rgba(0, 0, 0, 0.5); }
+.logo span { display: block; color: transparent; background: linear-gradient(180deg, var(--hero-2), var(--hero) 60%, #e0661a); -webkit-background-clip: text; background-clip: text; text-shadow: none; filter: drop-shadow(0 4px 22px rgba(255, 155, 47, 0.35)); }
+.main-nav { gap: 10px; }
+.nav-btn { min-width: 380px; padding: 6px 28px 4px; gap: 18px; background: rgba(255, 255, 255, 0.07); border: none; border-left: 5px solid rgba(255, 255, 255, 0.35); transform: skewX(-12deg); font-style: normal; }
+.nav-btn > * { transform: skewX(12deg); }
+.nav-btn .nb-main { font-family: var(--display); font-size: 46px; line-height: 1.05; letter-spacing: 2px; font-weight: 600; }
+.nav-btn em { font-family: var(--head); font-size: 12px; letter-spacing: 3px; color: var(--muted); margin-left: auto; padding-top: 6px; }
+.nav-btn.small { min-width: 300px; }
+.nav-btn.small .nb-main { font-size: 32px; }
+.nav-btn:hover:not(:disabled) { background: rgba(255, 255, 255, 0.16); border-left-color: var(--hero); padding-left: 38px; }
+.nav-btn.primary { background: linear-gradient(90deg, var(--hero), var(--hero-2)); color: #1a0d00; border-left-color: #fff; box-shadow: 0 8px 30px rgba(255, 155, 47, 0.28); }
+.nav-btn.primary em { color: rgba(26, 13, 0, 0.65); }
+.nav-btn.primary:hover { background: linear-gradient(90deg, #ffab4a, #ffd27a); color: #1a0d00; box-shadow: 0 8px 40px rgba(255, 155, 47, 0.5); }
+.main-footer { position: absolute; left: clamp(24px, 6vw, 90px); bottom: 20px; }
+
+.screen-head h2 { font-family: var(--display); font-style: normal; font-weight: 600; font-size: 64px; line-height: 0.9; letter-spacing: 3px; transform: skewX(-8deg); padding-top: 6px; }
+.big-btn { font-family: var(--display); font-style: normal; font-weight: 600; font-size: 40px; letter-spacing: 3px; line-height: 1; padding: 12px 64px 6px; background: linear-gradient(90deg, var(--hero), var(--hero-2)); color: #1a0d00; }
+.big-btn:hover { box-shadow: 0 0 34px rgba(255, 155, 47, 0.55); }
+.diff-btn.sel, .tab.sel { background: var(--hero); border-color: var(--hero); color: #1a0d00; }
+
+/* the chosen hero */
+.hero-chip { display: flex; align-items: stretch; gap: 16px; }
+.hero-chip .hc-bar { width: 8px; background: var(--hc); box-shadow: 0 0 18px var(--hc); transform: skewX(-12deg); }
+.hero-chip .hc-kicker { font-family: var(--head); font-size: 12px; letter-spacing: 4px; color: var(--muted); }
+.hero-chip .hc-name { font-family: var(--display); font-size: 44px; line-height: 0.9; letter-spacing: 2px; font-weight: 600; transform: skewX(-8deg); transform-origin: left; padding-top: 4px; }
+.hero-chip .hc-weapon { display: flex; align-items: center; gap: 8px; font-family: var(--head); font-size: 13px; letter-spacing: 3px; color: var(--hero); font-weight: 700; }
+.hero-chip .hc-weapon .ico { width: 22px; height: 22px; }
+.hero-chip .hc-change { align-self: center; margin-left: 10px; font-family: var(--display); font-size: 24px; letter-spacing: 2px; padding: 6px 22px 2px; color: var(--text); background: rgba(255, 255, 255, 0.08); border: 1px solid rgba(255, 255, 255, 0.25); transform: skewX(-12deg); }
+.hero-chip .hc-change:hover { background: var(--hero); color: #1a0d00; border-color: var(--hero); }
+.hero-chip.big { position: absolute; right: clamp(24px, 5vw, 80px); bottom: clamp(24px, 6vh, 64px); align-items: flex-end; text-shadow: 0 4px 20px rgba(0, 0, 0, 0.6); }
+.hero-chip.big .hc-name { font-size: clamp(72px, 11vh, 120px); }
+.hero-chip.big .hc-bar { width: 12px; }
+#screen-maps .class-row, #screen-lobby .class-row { padding: 12px 18px; background: var(--panel); border: 1px solid var(--line); }
+
+/* heroes screen */
+#screen-heroes { padding-left: clamp(24px, 5vw, 80px); }
+.heroes-wrap { display: flex; gap: 22px; align-items: flex-start; flex: 1; min-height: 0; }
+.hero-tiles { display: flex; flex-direction: column; gap: 10px; }
+.hero-tile { position: relative; width: 132px; height: 96px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; color: var(--text); background: rgba(255, 255, 255, 0.06); border: 2px solid rgba(255, 255, 255, 0.12); transform: skewX(-10deg); transition: all 0.12s; }
+.hero-tile > * { transform: skewX(10deg); }
+.hero-tile .ht-ico { color: var(--hc); }
+.hero-tile .ht-ico .ico { width: 44px; height: 44px; }
+.hero-tile .ht-name { font-family: var(--display); font-size: 26px; letter-spacing: 2px; line-height: 0.9; }
+.hero-tile:hover { background: rgba(255, 255, 255, 0.12); border-color: var(--hc); }
+.hero-tile.sel { background: linear-gradient(160deg, color-mix(in srgb, var(--hc) 45%, transparent), rgba(255, 255, 255, 0.04)); border-color: var(--hc); box-shadow: 0 0 24px color-mix(in srgb, var(--hc) 40%, transparent); }
+.hero-info { width: min(460px, 42vw); padding: 4px 0; }
+.hi-role { display: flex; align-items: center; gap: 8px; font-family: var(--head); font-weight: 700; letter-spacing: 4px; font-size: 14px; color: var(--hc); }
+.hi-role .ico { width: 20px; height: 20px; }
+.hi-name { font-family: var(--display); font-size: clamp(80px, 13vh, 130px); line-height: 0.8; font-weight: 700; letter-spacing: 3px; transform: skewX(-8deg); transform-origin: left; margin: 10px 0 8px; text-shadow: 0 6px 30px rgba(0, 0, 0, 0.5); }
+.hi-desc { font-size: 18px; line-height: 1.3; color: var(--muted); margin-bottom: 14px; }
+.hi-stats { display: grid; gap: 6px; margin-bottom: 14px; max-width: 400px; }
+.hs { display: grid; grid-template-columns: 110px 1fr; align-items: center; font-family: var(--head); font-size: 12px; letter-spacing: 3px; color: var(--muted); }
+.hs-bar { display: flex; gap: 4px; }
+.hs-bar i { flex: 1; height: 10px; background: rgba(255, 255, 255, 0.1); transform: skewX(-20deg); }
+.hs-bar i.on { background: var(--hc); box-shadow: 0 0 8px color-mix(in srgb, var(--hc) 60%, transparent); }
+.hi-block { display: grid; grid-template-columns: 52px 1fr; gap: 12px; align-items: center; padding: 10px 12px; margin-bottom: 8px; background: var(--panel); border-left: 4px solid var(--hc); }
+.hb-ico { width: 52px; height: 52px; display: grid; place-items: center; background: rgba(255, 255, 255, 0.06); color: var(--hc); }
+.hb-ico .ico { width: 32px; height: 32px; }
+.hb-kicker { font-family: var(--head); font-size: 11px; letter-spacing: 4px; color: var(--muted); }
+.hb-t { font-family: var(--display); font-size: 30px; line-height: 0.95; letter-spacing: 2px; padding-top: 2px; }
+.hb-d { font-size: 15px; color: var(--muted); line-height: 1.25; }
+.hb-d.strong { color: var(--text); font-size: 17px; font-weight: 600; }
+.hi-build { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; margin-top: 6px; }
+.hib { display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 8px 4px 6px; background: rgba(255, 255, 255, 0.05); font-family: var(--head); font-size: 11px; letter-spacing: 1px; color: var(--muted); }
+.hib .ico { width: 26px; height: 26px; color: var(--text); }
+.heroes-foot { position: absolute; right: clamp(24px, 5vw, 80px); bottom: clamp(24px, 6vh, 56px); }
+@media (max-height: 760px) { .hi-desc { display: none; } .hi-name { font-size: 76px; } .hero-tile { height: 78px; } }

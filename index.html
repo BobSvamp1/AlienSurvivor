@@ -6,7 +6,7 @@
     <title>Alien Survivor</title>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link href="https://fonts.googleapis.com/css2?family=Chakra+Petch:ital,wght@0,500;0,600;0,700;1,600;1,700&family=Rajdhani:wght@500;600;700&display=swap" rel="stylesheet" />
+    <link href="https://fonts.googleapis.com/css2?family=Chakra+Petch:ital,wght@0,500;0,600;0,700;1,600;1,700&family=Rajdhani:wght@500;600;700&family=Teko:wght@500;600;700&display=swap" rel="stylesheet" />
   </head>
   <body>
     <div id="app"></div>
@@ -82,17 +82,30 @@
 
     <section id="screen-main" class="screen hidden">
       <div class="main-left">
-        <div class="kicker">CO-OP BASE DEFENSE</div>
-        <h1 class="logo">ALIEN<br /><span>SURVIVOR</span></h1>
-        <p class="tagline">The swarm comes when night falls. Build. Fight. Survive.</p>
+        <div class="kicker">CO-OP TRAP DEFENSE · 1–4 PLAYERS</div>
+        <h1 class="logo">ALIEN<span>SURVIVOR</span></h1>
         <nav class="main-nav">
-          <button data-go="maps" class="nav-btn primary"><span class="ico-slot" data-icon="play"></span>PLAY</button>
-          <button data-go="coop" class="nav-btn"><span class="ico-slot" data-icon="users"></span>CO-OP</button>
-          <button data-go="howto" class="nav-btn"><span class="ico-slot" data-icon="book"></span>HOW TO PLAY</button>
-          <button data-go="settings" class="nav-btn"><span class="ico-slot" data-icon="gear"></span>SETTINGS</button>
+          <button data-go="maps" class="nav-btn primary"><span class="nb-main">PLAY</span><em>SOLO MISSIONS</em></button>
+          <button data-go="coop" class="nav-btn"><span class="nb-main">CO-OP</span><em>PLAY WITH FRIENDS</em></button>
+          <button data-go="heroes" class="nav-btn"><span class="nb-main">HEROES</span><em>CHOOSE YOUR CLASS</em></button>
+          <button data-go="howto" class="nav-btn small"><span class="nb-main">HOW TO PLAY</span></button>
+          <button data-go="settings" class="nav-btn small"><span class="nb-main">SETTINGS</span></button>
         </nav>
       </div>
-      <div class="main-footer">v0.2 · Built with three.js</div>
+      <div class="hero-chip big" id="hero-chip-main"></div>
+      <div class="main-footer">v0.3 · Built with three.js</div>
+    </section>
+
+    <section id="screen-heroes" class="screen hidden">
+      <div class="screen-head">
+        <button class="back-btn" data-back><span class="ico-slot" data-icon="back"></span>BACK</button>
+        <h2>HEROES</h2>
+      </div>
+      <div class="heroes-wrap">
+        <div class="hero-tiles" id="hero-tiles"></div>
+        <div class="hero-info" id="hero-info"></div>
+      </div>
+      <div class="heroes-foot"><button id="hero-confirm" class="big-btn">SELECT</button></div>
     </section>
 
     <section id="screen-coop" class="screen hidden">
@@ -124,7 +137,7 @@
         <button id="lobby-leave" class="back-btn"><span class="ico-slot" data-icon="back"></span>LEAVE</button>
         <h2>LOBBY</h2>
       </div>
-      <div class="class-row"><div class="diff-label">YOUR CLASS</div><div class="class-picker" id="class-picker-lobby"></div></div>
+      <div class="class-row"><div class="hero-chip" id="hero-chip-lobby"></div></div>
       <div class="lobby-wrap">
         <div class="lobby-code">
           <div class="lc-label">ROOM CODE</div>
@@ -146,7 +159,7 @@
         <h2>SELECT MISSION</h2>
       </div>
       <div id="map-cards"></div>
-      <div class="class-row"><div class="diff-label">CLASS</div><div class="class-picker" id="class-picker-maps"></div></div>
+      <div class="class-row"><div class="hero-chip" id="hero-chip-maps"></div></div>
       <div class="map-bottom">
         <div class="diff">
           <div class="diff-label">DIFFICULTY</div>

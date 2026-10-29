@@ -10,7 +10,9 @@ import { bestWave, bestStars, saveSettings } from '../core/settings.js';
 import { CLASSES, CLASS_ORDER, WEAPONS } from '../data/classes.js';
 
 const $ = (id) => document.getElementById(id);
-const SCREENS = ['main', 'coop', 'lobby', 'maps', 'settings', 'howto', 'pause', 'armory', 'over'];
+const SCREENS = ['main', 'heroes', 'coop', 'lobby', 'maps', 'settings', 'howto', 'pause', 'armory', 'over'];
+const WICON = { rifle: 'rifle', shotgun: 'shotgun', flamer: 'flamer', railgun: 'railgun' };
+const SLOT_ICON = { barricade: 'barricade', gatling: 'gatling', flamer: 'flamer', tesla: 'tesla', mortar: 'mortar', trap: 'trap', generator: 'generator', shield: 'shield', spikes: 'spikes', goo: 'goo', vent: 'vent', launcher: 'launcher', laser: 'laser' };
 const B_ICONS = { barricade: 'barricade', gatling: 'gatling', flamer: 'flamer', tesla: 'tesla', mortar: 'mortar', trap: 'trap', generator: 'generator', shield: 'shield' };
 
 export class Menus {
@@ -51,6 +53,7 @@ export class Menus {
       this.go('maps');
     });
     $('menu-btn').addEventListener('click', () => game.quitToMenu());
+    $('hero-confirm').addEventListener('click', () => this.back());
     $('armory-close').addEventListener('click', () => game.closeArmory());
 
     this.buildMapCards();
@@ -65,7 +68,12 @@ export class Menus {
   showOnly(name) {
     for (const s of SCREENS) $('screen-' + s).classList.toggle('hidden', s !== name);
     this.current = name;
-    $('menu-bg').classList.toggle('hidden', !(name === 'main'));
+    $('menu-bg').classList.toggle('hidden', !(name === 'main' || name === 'heroes'));
+    $('menu-bg').classList.toggle('hero', name === 'heroes');
+    const g = this.game;
+    g.showcase.set(g.inGame ? 'off' : name === 'heroes' ? 'hero' : name === 'maps' ? 'off' : 'lineup');
+    if (name === 'heroes') this.renderHeroes();
+    if (name === 'main' || name === 'maps' || name === 'lobby') this.refreshHeroChips();
     if (name === 'maps') { this.refreshMapCards(); this.refreshCoopBanner(); }
     if (name === 'armory') this.renderArmory();
     if (name === 'lobby') this.renderLobby();
@@ -93,6 +101,7 @@ export class Menus {
   hideAll() {
     for (const s of SCREENS) $('screen-' + s).classList.add('hidden');
     $('menu-bg').classList.add('hidden');
+    this.game.showcase.set('off');
     this.current = null;
     this.stack = [];
   }
@@ -179,28 +188,48 @@ export class Menus {
     }
   }
 
-  // ------------------------------------------------------------ classes
-  renderClassPickers() {
-    const SLOT = { barricade: 'barricade', gatling: 'gatling', flamer: 'flamer', tesla: 'tesla', mortar: 'mortar', trap: 'trap', generator: 'generator', shield: 'shield', spikes: 'spikes', goo: 'goo', vent: 'vent', launcher: 'launcher', laser: 'laser' };
-    const WICON = { rifle: 'rifle', shotgun: 'shotgun', flamer: 'flamer', railgun: 'railgun' };
-    for (const id of ['class-picker-maps', 'class-picker-lobby']) {
-      const wrap = $(id);
-      if (!wrap) continue;
-      wrap.innerHTML = '';
-      for (const cid of CLASS_ORDER) {
-        const c = CLASSES[cid];
-        const b = document.createElement('button');
-        b.className = 'class-card' + (cid === this.game.cls ? ' sel' : '');
-        b.title = c.desc;
-        b.innerHTML = `<div class="cc-ico">${icon(WICON[c.weapon])}</div>
-          <div class="cc-name">${c.name.toUpperCase()}<em>${c.role.toUpperCase()}</em></div>
-          <div class="cc-weapon">${WEAPONS[c.weapon].name}</div>
-          <div class="cc-perk">${c.perk}</div>
-          <div class="cc-build">${c.build.map((t) => `<span title="${BUILDINGS[t].name}">${icon(SLOT[t])}</span>`).join('')}</div>`;
-        b.addEventListener('click', () => this.pickClass(cid));
-        wrap.appendChild(b);
-      }
+  // ------------------------------------------------------------ heroes (classes)
+  renderClassPickers() { this.refreshHeroChips(); }
+
+  // the chosen hero, shown on the main menu, mission select and lobby
+  refreshHeroChips() {
+    const c = CLASSES[this.game.cls] || CLASSES.marine;
+    const html = (big) => `<div class="hc-bar" style="--hc:${c.color}"></div>
+      <div class="hc-text"><div class="hc-kicker">${big ? 'YOUR HERO' : 'HERO'} · ${c.role.toUpperCase()}</div>
+      <div class="hc-name">${c.name.toUpperCase()}</div>
+      <div class="hc-weapon">${icon(WICON[c.weapon])}${WEAPONS[c.weapon].name}</div></div>
+      <button class="hc-change" data-go="heroes">CHANGE HERO</button>`;
+    for (const [id, big] of [['hero-chip-main', true], ['hero-chip-maps', false], ['hero-chip-lobby', false]]) {
+      const el = $(id);
+      if (el) el.innerHTML = html(big);
     }
+  }
+
+  renderHeroes() {
+    const g = this.game;
+    const tiles = $('hero-tiles');
+    tiles.innerHTML = '';
+    for (const cid of CLASS_ORDER) {
+      const c = CLASSES[cid];
+      const b = document.createElement('button');
+      b.className = 'hero-tile' + (cid === g.cls ? ' sel' : '');
+      b.style.setProperty('--hc', c.color);
+      b.innerHTML = `<span class="ht-ico">${icon(WICON[c.weapon])}</span><span class="ht-name">${c.name.toUpperCase()}</span>`;
+      b.addEventListener('click', () => { this.pickClass(cid); this.renderHeroes(); });
+      tiles.appendChild(b);
+    }
+    const c = CLASSES[g.cls] || CLASSES.marine;
+    const w = WEAPONS[c.weapon];
+    const STAT = [['health', 'HEALTH'], ['firepower', 'FIREPOWER'], ['range', 'RANGE'], ['mobility', 'MOBILITY'], ['building', 'BUILDING']];
+    $('hero-info').style.setProperty('--hc', c.color);
+    $('hero-info').innerHTML = `<div class="hi-role">${icon(c.icon === 'crit' ? 'crit' : c.icon)}${c.role.toUpperCase()}</div>
+      <div class="hi-name">${c.name.toUpperCase()}</div>
+      <div class="hi-desc">${c.desc}</div>
+      <div class="hi-stats">${STAT.map(([k, l]) => `<div class="hs"><span>${l}</span><div class="hs-bar">${[1, 2, 3, 4, 5].map((n) => `<i class="${n <= c.stats[k] ? 'on' : ''}"></i>`).join('')}</div></div>`).join('')}</div>
+      <div class="hi-block"><div class="hb-ico">${icon(WICON[c.weapon])}</div><div><div class="hb-kicker">WEAPON</div><div class="hb-t">${w.name}</div><div class="hb-d">${w.desc}</div></div></div>
+      <div class="hi-block"><div class="hb-ico">${icon('up')}</div><div><div class="hb-kicker">PERK</div><div class="hb-d strong">${c.perk}</div></div></div>
+      <div class="hb-kicker" style="margin-top:12px">TRAPS &amp; DEFENSES</div>
+      <div class="hi-build">${c.build.map((t) => `<div class="hib">${icon(SLOT_ICON[t])}<span>${BUILDINGS[t].short}</span></div>`).join('')}</div>`;
   }
 
   pickClass(cid) {
@@ -211,7 +240,7 @@ export class Menus {
     saveSettings(g.settings);
     g.net.setClass(cid);
     g.audio.uiSelect();
-    this.renderClassPickers();
+    this.refreshHeroChips();
   }
 
   refreshMapCards() {

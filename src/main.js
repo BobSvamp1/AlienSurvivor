@@ -22,6 +22,7 @@ import { Hud } from './ui/hud.js';
 import { Menus } from './ui/menus.js';
 import { veinClock } from './world/textures.js';
 import { Net } from './net/net.js';
+import { Showcase } from './ui/showcase.js';
 
 const FIRST_BUILD_TIME = 180;
 const BUILD_TIME = 180; // 3 minutes to build between waves (G starts the next wave early)
@@ -67,6 +68,7 @@ game.players = [game.player]; // ready for co-op: more players go here
 game.weapon = new Weapon(game);
 game.hud = new Hud(game);
 game.net = new Net(game);
+game.showcase = new Showcase(game);
 game.menus = new Menus(game);
 
 // in co-op the world keeps running while someone is in a menu
@@ -622,12 +624,14 @@ function step(dt) {
     game.weapon.root.visible = false; // no gun floating in front of the menu camera
     // slow camera flight behind the menu
     menuT += dt;
+    if (game.showcase.update(dt)) { /* the squad line-up drives the camera */ } else {
     const c = game.core.pos;
     const t = menuT * 0.05;
     const cam = game.r.camera;
     cam.position.set(c.x + Math.sin(t) * 30, c.y + 11 + Math.sin(t * 0.7) * 2, c.z + Math.cos(t) * 30);
     cam.lookAt(c.x - Math.cos(t) * 8, c.y + 3, c.z + Math.sin(t) * 8);
     if (cam.fov !== 60) { cam.fov = 60; cam.updateProjectionMatrix(); }
+    }
   }
   if (game.world) game.world.update(dt, game.inGame ? game.time : performance.now() / 1000);
   if (game.inGame && !game.running) {

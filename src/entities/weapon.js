@@ -404,14 +404,20 @@ export class Weapon {
     rh.rotation.x = 0.35;
     const lh = box(0.08, 0.05, 0.1, M.glove, left[0], left[1], left[2], leftParent);
     lh.rotation.z = 0.2;
-    const sleeveR = new THREE.Mesh(new THREE.CylinderGeometry(0.042, 0.055, 0.5, 12), M.sleeve);
-    sleeveR.position.set(right[0] + 0.066, right[1] - 0.125, right[2] + 0.225);
-    sleeveR.rotation.set(1.05, 0, -0.4);
-    g.add(sleeveR);
-    const sleeveL = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.05, 0.6, 12), M.sleeve);
-    sleeveL.position.set(left[0] - 0.14, left[1] - 0.165, left[2] + 0.2);
-    sleeveL.rotation.set(1.15, 0, 0.85);
-    leftParent.add(sleeveL);
+    // forearms + upper arms as tapered tubes (hand -> elbow -> shoulder, out of view)
+    const limb = (a, b2, r1, r2, parent) => {
+      const A = new THREE.Vector3(...a), B = new THREE.Vector3(...b2);
+      const geo = new THREE.CylinderGeometry(r2, r1, A.distanceTo(B), 12);
+      geo.applyQuaternion(new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 1, 0), B.clone().sub(A).normalize()));
+      geo.translate((A.x + B.x) / 2, (A.y + B.y) / 2, (A.z + B.z) / 2);
+      parent.add(new THREE.Mesh(geo, M.sleeve));
+    };
+    const rE = [right[0] + 0.09, right[1] - 0.15, right[2] + 0.17];
+    limb([right[0] + 0.01, right[1] - 0.02, right[2] + 0.04], rE, 0.038, 0.046, g);
+    limb(rE, [rE[0] + 0.05, rE[1] - 0.2, rE[2] + 0.3], 0.048, 0.058, g);
+    const lE = [left[0] - 0.17, left[1] - 0.17, left[2] + 0.2];
+    limb([left[0] - 0.02, left[1] - 0.03, left[2] + 0.03], lE, 0.036, 0.046, leftParent);
+    limb(lE, [lE[0] - 0.08, lE[1] - 0.22, lE[2] + 0.3], 0.048, 0.058, leftParent);
   }
 
   // Scattergun: pump-action, short and heavy, orange pump grip
@@ -440,7 +446,14 @@ export class Weapon {
     g.add(pump);
     profile([[-0.17, 0.006], [-0.33, 0.006], [-0.335, -0.03], [-0.32, -0.042], [-0.18, -0.042], [-0.165, -0.03]], 0.072, M.orange, 0.01, 0, pump);
     for (let i = 0; i < 5; i++) box(0.076, 0.006, 0.008, M.dark, 0, -0.018, -0.19 - i * 0.03, pump);
-    this.hands(g, H, M, [0.004, -0.085, 0.085], [-0.012, -0.05, -0.26], pump);
+    this.hands(g, H, M, [0.004, -0.085, 0.085], [-0.008, -0.042, -0.255], pump);
+    // the left hand wraps the pump: fingers curl over the right side, thumb on the left
+    for (let k = 0; k < 4; k++) {
+      const f = box(0.016, 0.026, 0.02, M.glove, 0.043, -0.006 - Math.abs(k - 1.5) * 0.003, -0.215 - k * 0.024, pump);
+      f.rotation.z = -0.25;
+    }
+    const thumb = box(0.016, 0.022, 0.06, M.glove, -0.044, 0.0, -0.24, pump);
+    thumb.rotation.y = 0.15;
     const muzzle = new THREE.Object3D();
     muzzle.position.set(0, 0.038, -0.63);
     g.add(muzzle);

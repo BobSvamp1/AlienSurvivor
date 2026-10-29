@@ -87,6 +87,41 @@ export const ENEMIES = {
     colors: { skin: '#3a1612', shell: '#9a3a22', eye: '#ff5a2e', blood: '#ff9a3d' },
     rig: { scale: 1.75, legs: 6, legLen: 1.05, bodyH: 0.72, abdomen: [1.05, 0.65], thorax: [0.7, 0.55], head: 0.45, ridges: 4, plates: true, horns: true },
   },
+  mender: {
+    name: 'Mender',
+    desc: 'A support bug with a glowing sac. Every few seconds it heals all aliens around it. Kill it first!',
+    hp: 70, speed: 3.9, dmg: 6, rate: 1.2, reward: 22, radius: 0.75, structDmg: 10, aggro: 9, heal: { r: 7, frac: 0.14, every: 3.2 },
+    colors: { skin: '#123326', shell: '#2f8a62', eye: '#6affb4', blood: '#7affc0' },
+    rig: { scale: 1.05, legs: 6, legLen: 1.15, bodyH: 0.78, abdomen: [1.0, 0.7], thorax: [0.5, 0.42], head: 0.34, ridges: 4, sac: '#6affb4' },
+  },
+  splitter: {
+    name: 'Splitter',
+    desc: 'A swollen brood carrier. When it dies it bursts open and three swarmlings crawl out.',
+    hp: 95, speed: 3.6, dmg: 12, rate: 1.1, reward: 14, radius: 0.85, structDmg: 22, aggro: 9, splits: { type: 'swarmling', n: 3 },
+    colors: { skin: '#3a1a14', shell: '#a8542a', eye: '#ffb43d', blood: '#ffb43d' },
+    rig: { scale: 1.2, legs: 6, legLen: 0.95, bodyH: 0.72, abdomen: [1.35, 0.85], thorax: [0.5, 0.42], head: 0.34, ridges: 7, sac: '#ff9a3d' },
+  },
+  stalker: {
+    name: 'Phase Stalker',
+    desc: 'A cloaked hunter, almost invisible while it moves. Turrets only see it up close; it flickers into view when hit or when it strikes.',
+    hp: 80, speed: 7.2, dmg: 15, rate: 0.8, reward: 24, radius: 0.6, structDmg: 14, aggro: 22, rigType: 'biped', cloak: true,
+    colors: { skin: '#141a2a', shell: '#3a4a7a', eye: '#a0b8ff', blood: '#a0b8ff' },
+    rig: { scale: 1.1, legLen: 1.05, bodyH: 1.0 },
+  },
+  corroder: {
+    name: 'Corroder',
+    desc: 'A low acid crawler. Floor traps it walks over are eaten by its acid and stop working for 4 seconds.',
+    hp: 65, speed: 4.6, dmg: 8, rate: 1.0, reward: 18, radius: 0.65, structDmg: 30, aggro: 8, jams: 4,
+    colors: { skin: '#1e2a0e', shell: '#7a9a1a', eye: '#e8ff3d', blood: '#d8ff3d' },
+    rig: { scale: 0.95, legs: 8, legLen: 0.8, bodyH: 0.45, abdomen: [1.1, 0.5], thorax: [0.55, 0.36], head: 0.32, ridges: 8, spikes: true },
+  },
+  charger: {
+    name: 'Charger',
+    desc: 'A horned battering ram. Lowers its head and charges at walls and players, hitting four times as hard.',
+    hp: 170, speed: 3.6, dmg: 20, rate: 1.2, reward: 30, radius: 1.0, structDmg: 40, aggro: 12, charge: { range: 13, mult: 3, hit: 4, cd: 6 },
+    colors: { skin: '#2a1a0a', shell: '#8a6a2a', eye: '#ffd23d', blood: '#ffcf5a' },
+    rig: { scale: 1.4, legs: 6, legLen: 1.05, bodyH: 0.75, abdomen: [0.95, 0.6], thorax: [0.72, 0.55], head: 0.48, ridges: 4, plates: true, horns: true },
+  },
   queen: {
     name: 'Brood Queen',
     desc: 'Boss. A huge mother that constantly births swarmlings while marching on the core.',
@@ -101,35 +136,21 @@ export const ENEMIES = {
     colors: { skin: '#2a2c33', shell: '#46586b', eye: '#ff2a2a', blood: '#ff5a3d' },
     rig: { scale: 3.6, legs: 6, legLen: 1.15, bodyH: 0.8, abdomen: [1.1, 0.7], thorax: [0.8, 0.6], head: 0.5, ridges: 5, plates: true, horns: true },
   },
+  wyrm: {
+    name: 'Burrow Wyrm',
+    desc: 'Boss. A colossal worm that dives underground, then erupts under your defenses or right beneath you. Can only be hurt above ground.',
+    hp: 2600, speed: 2.4, dmg: 40, rate: 1.4, reward: 380, radius: 1.9, structDmg: 170, aggro: 14, boss: true, rigType: 'segment', wyrm: { r: 5, every: 13 },
+    colors: { skin: '#2a1418', shell: '#7a3a2a', eye: '#ff6a2a', blood: '#ff8a3d' },
+    rig: { scale: 2.8, segments: 16, segLen: 0.5, radius: 0.5, head: 0.62, maw: true, plates: true, spines: true, undulate: 0.3 },
+  },
+  overseer: {
+    name: 'Overseer',
+    desc: 'Boss. A giant floating brain-jelly. Rains acid volleys on players and turrets and calls in swarms of Stingers.',
+    hp: 2600, speed: 2.4, dmg: 14, rate: 3.6, reward: 400, radius: 2.4, structDmg: 50, aggro: 40, boss: true, flying: true, hover: 8, rigType: 'jelly', overseer: true,
+    colors: { skin: '#2a1040', shell: '#c04aff', eye: '#ff6af5', blood: '#e08aff' },
+    rig: { scale: 2.9, eyes: 8 },
+  },
 };
 
-export const ENEMY_ORDER = ['swarmling', 'drone', 'spitter', 'leaper', 'bloater', 'wasp', 'serpent', 'burrower', 'ravager', 'floater', 'bulwark', 'brute', 'queen', 'titan'];
-
-// Which enemies show up in a wave
-export function waveComposition(wave, bias = {}, countMult = 1) {
-  const list = [];
-  const add = (type, n) => {
-    const b = bias[type] || 1;
-    const c = Math.round(n * b * countMult);
-    for (let i = 0; i < c; i++) list.push(type);
-  };
-  add('drone', 4 + wave * 2.6);
-  if (wave >= 2) add('swarmling', Math.floor(wave / 2) * 4);
-  if (wave >= 2) add('spitter', (wave - 1) * 1.1);
-  if (wave >= 3) add('leaper', (wave - 2) * 0.8);
-  if (wave >= 4) add('wasp', (wave - 3) * 0.9);
-  if (wave >= 4) add('bloater', (wave - 3) * 0.5);
-  if (wave >= 3) add('brute', (wave - 2) * 0.45);
-  if (wave >= 3) add('serpent', (wave - 2) * 1.2);
-  if (wave >= 3) add('ravager', (wave - 2) * 0.5);
-  if (wave >= 4) add('burrower', (wave - 3) * 0.45);
-  if (wave >= 5) add('floater', (wave - 4) * 0.5);
-  if (wave >= 5) add('bulwark', (wave - 4) * 0.4);
-  for (let i = list.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [list[i], list[j]] = [list[j], list[i]];
-  }
-  if (wave % 10 === 0) list.splice(Math.floor(list.length * 0.4), 0, 'titan');
-  else if (wave % 5 === 0) list.splice(Math.floor(list.length * 0.4), 0, 'queen');
-  return list;
-}
+export const ENEMY_ORDER = ['swarmling', 'drone', 'spitter', 'splitter', 'serpent', 'leaper', 'wasp', 'bloater', 'ravager', 'corroder', 'charger', 'burrower', 'floater', 'mender', 'stalker', 'bulwark', 'brute', 'queen', 'titan', 'wyrm', 'overseer'];
+export const BOSSES = ['queen', 'titan', 'wyrm', 'overseer'];

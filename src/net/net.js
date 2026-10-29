@@ -413,6 +413,8 @@ export class Net {
       if (e.slamT > 0) f |= 8;
       if (e.spawnT < 1) f |= 16;
       if (e.nearBoom) f |= 32;
+      if (e.def.cloak && e.cloak < 0.5) f |= 64;
+      if (e.chargeT > 0) f |= 128;
       en.push([e.nid, e.type, r2(e.pos.x), r2(e.pos.y), r2(e.pos.z), r2(e.yaw), Math.round((e.hp / e.maxHp) * 1000) / 1000, f, e.atkN || 0]);
     }
     const sh = [];
@@ -508,6 +510,8 @@ export class Net {
       case 'over': g.netGameOver(e); break;
       case 'win': g.showVictory(e); break;
       case 'spit': g.enemies.visualProjectile(e); break;
+      case 'heal': g.enemies.healFx(e.x, e.z, e.r); break;
+      case 'ram': g.enemies.ramFx(e.x, e.z); break;
       case 'shock': g.fx.shockwave(e.x, e.z, e.r); g.audio.slam(_v.set(e.x, 0, e.z)); g.shake(1.2, _v); break;
       case 'boom': g.fx.explosion(_v.set(e.x, e.y, e.z), e.c || '#ffb43d', e.r); g.audio.explosion(_v, e.s || 1); break;
       case 'toast': g.hud.toast(e.m, e.kind); break;

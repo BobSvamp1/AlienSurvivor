@@ -976,6 +976,18 @@ export class BuildSystem {
       if (this.arcMesh) this.arcMesh.visible = false;
     }
 
+    // Corroders eat floor traps they walk over: the trap stops working for a while
+    for (const e of game.enemies.list) {
+      if (!e.def.jams || e.dead || e.hidden || e.spawnT < 1) continue;
+      const i = this.nav.ci(e.pos.x), j = this.nav.cj(e.pos.z);
+      if (!this.nav.inside(i, j)) continue;
+      const s = this.nav.struct[this.nav.idx(i, j)];
+      if (s && !s.def.solid && (s.def.floor || s.type === 'trap')) {
+        if (!(s.jam > 0)) game.fx.burst(_v.set(s.x, s.y + 0.3, s.z), '#d8ff3d', 10, 3, 0.08);
+        s.jam = e.def.jams;
+      }
+    }
+
     // temporary buildings (Engineer sentries) run out
     for (let i = this.structures.length - 1; i >= 0; i--) {
       const s = this.structures[i];
@@ -994,7 +1006,9 @@ export class BuildSystem {
         s.group.scale.set(1, Math.max(0.02, k), 1);
         s.group.updateMatrixWorld(true);
       }
-      if (s.offline) {
+      if (s.jam > 0) {
+        this.updateJammed(s, dt);
+      } else if (s.offline) {
         this.updateOffline(s, dt);
       } else if (s.type === 'gatling' || s.type === 'sentry') this.updateGatling(s, dt);
       else if (s.type === 'generator') this.updateGenerator(s, dt);
@@ -1038,6 +1052,16 @@ export class BuildSystem {
     }
   }
 
+  updateJammed(s, dt) {
+    s.jam -= dt;
+    s.fx = (s.fx || 0) - dt;
+    if (s.fx <= 0) {
+      s.fx = 0.12;
+      this.game.fx.burst(_v.set(s.x + (Math.random() - 0.5) * 1.6, s.y + 0.15, s.z + (Math.random() - 0.5) * 1.6), '#c8ff3d', 2, 1.2, 0.06); // acid sizzle
+    }
+    if (s.jam <= 0) { s.jam = 0; s.fx = 0; }
+  }
+
   updateShield(s, dt) {
     const g = this.game;
     const u = s.parts.fieldU;
@@ -1073,6 +1097,7 @@ export class BuildSystem {
       if (e.def.flying && !opts.air) continue;
       const d = Math.hypot(e.pos.x - s.x, e.pos.z - s.z);
       if (d < minR || d >= bd) continue;
+      if (e.cloak > 0.5 && d > 7) continue; // cloaked Phase Stalkers are only seen up close
       if (opts.arc !== undefined) {
         const a = Math.atan2(-(e.pos.x - s.x), -(e.pos.z - s.z));
         const diff = Math.abs(Math.atan2(Math.sin(a - s.baseYaw), Math.cos(a - s.baseYaw)));
@@ -1355,7 +1380,7 @@ export class BuildSystem {
     s.flip = Math.max(0, (s.flip || 0) - dt * 3);
     if (s.parts.hinge) s.parts.hinge.rotation.x = Math.sin(Math.min(1, s.flip) * Math.PI) * 0.9;
     if (s.cd > 0) return;
-    const heavy = (e) => e.def.boss || ((e.type === 'brute' || e.type === 'bulwark') && !lv.heavy);
+    const heavy = (e) => e.def.boss || ((e.type === 'brute' || e.type === 'bulwark' || e.type === 'charger') && !lv.heavy);
     const on = this.enemiesOn(s, -0.15).filter((e) => !heavy(e) && !(e.flungT > 0));
     if (!on.length) return;
     s.cd = 1 / lv.rate;

@@ -100,20 +100,23 @@ export class Hud {
   }
 
   // A new alien type shows up: a card with its name and how to deal with it
-  introAlien(type, def) {
+  introAlien(type, def) { this.introAliens([def]); }
+
+  // "NEW ALIEN" card(s) when a wave brings new types
+  introAliens(defs) {
     let card = document.getElementById('intro-card');
     if (!card) {
       card = document.createElement('div');
       card.id = 'intro-card';
       this.el.root.appendChild(card);
     }
-    card.innerHTML = `<div class="ic-swatch" style="background:${def.colors.shell};color:${def.colors.eye}">${icon('bug')}</div>
-      <div class="ic-body"><div class="ic-kicker">NEW ALIEN</div><div class="ic-name">${def.name.toUpperCase()}</div><div class="ic-desc">${def.desc}</div></div>`;
+    card.innerHTML = defs.map((def) => `<div class="ic-row"><div class="ic-swatch" style="background:${def.colors.shell};color:${def.colors.eye}">${icon('bug')}</div>
+      <div class="ic-body"><div class="ic-kicker">NEW ALIEN</div><div class="ic-name">${def.name.toUpperCase()}</div><div class="ic-desc">${def.desc}</div></div></div>`).join('');
     card.classList.remove('show');
     void card.offsetWidth; // restart the slide-in (rare event, so the layout read is fine)
     card.classList.add('show');
     clearTimeout(this.introT);
-    this.introT = setTimeout(() => card.classList.remove('show'), 10000);
+    this.introT = setTimeout(() => card.classList.remove('show'), 10000 + (defs.length - 1) * 3000);
   }
 
   // ------------------------------------------------------------ messages
@@ -193,11 +196,17 @@ export class Hud {
     this.tog('t17', el.coreBar, 'hit', this.coreHitT > 0);
 
     // boss
-    const boss = g.enemies.boss;
-    this.tog('t18', el.boss, 'hidden', !boss);
-    if (boss) {
-      this.set('bossn', el.bossName, boss.def.name.toUpperCase());
-      this.sty('s5', el.bossFill, 'transform', `scaleX(${Math.max(0, boss.hp / boss.maxHp)})`);
+    // bosses: one bar for all of them (the final wave has two)
+    let hp = 0, max = 0, names = '';
+    for (const e of g.enemies.list) {
+      if (e.dead || !e.def.boss) continue;
+      hp += Math.max(0, e.hp); max += e.maxHp;
+      names += (names ? '  ·  ' : '') + e.def.name.toUpperCase() + (e.hidden ? ' (UNDERGROUND)' : '');
+    }
+    this.tog('t18', el.boss, 'hidden', !max);
+    if (max) {
+      this.set('bossn', el.bossName, names);
+      this.sty('s5', el.bossFill, 'transform', `scaleX(${hp / max})`);
     }
 
     // resources
@@ -415,6 +424,7 @@ export class Hud {
     // enemies
     for (const e of g.enemies.list) {
       if (e.dead) continue;
+      if (e.cloak > 0.5) continue; // cloaked
       const r = e.def.boss ? 6 : e.def.radius > 1 ? 3.5 : 2.4;
       ctx.fillStyle = e.def.boss ? '#ff6af5' : e.def.flying ? '#ffe14d' : '#ff4a5a';
       ctx.beginPath();

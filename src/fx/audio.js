@@ -17,6 +17,13 @@ const VOICES = {
   brute: { cls: 'B', pitch: 0.85, idle: ['growlB', 'growlB', 'hissB'] },
   queen: { cls: 'X', pitch: 1.0, idle: ['roar', 'growlB', 'hissB'] },
   titan: { cls: 'X', pitch: 0.75, idle: ['roar', 'growlB'] },
+  mender: { cls: 'M', pitch: 1.25, idle: ['moan', 'chitterM'] },
+  splitter: { cls: 'M', pitch: 0.8, idle: ['hissM', 'chitterM'] },
+  stalker: { cls: 'M', pitch: 1.35, idle: ['hissM'] },
+  corroder: { cls: 'S', pitch: 0.85, idle: ['hissS', 'chitterS'] },
+  charger: { cls: 'B', pitch: 1.05, idle: ['growlB', 'hissB'] },
+  wyrm: { cls: 'X', pitch: 0.6, idle: ['roar', 'hissB'] },
+  overseer: { cls: 'X', pitch: 1.3, idle: ['moan', 'roar'] },
 };
 const CLS = {
   S: { vol: 0.32, screech: 'screechS', death: 'deathS', every: [4, 9] },
@@ -579,6 +586,7 @@ export class Audio {
     this.tone(660, 990, 0.12, { type: 'triangle', vol: 0.18 });
     this.tone(990, 1320, 0.12, { type: 'triangle', vol: 0.14, at: this.ctx.currentTime + 0.09 });
   }
+  heal(pos) { if (this.throttle('heal', 0.2)) return; this.tone(380, 920, 0.4, { type: 'sine', vol: 0.2, pos }); this.tone(570, 1380, 0.35, { type: 'triangle', vol: 0.07, pos }); }
   pulse(pos) { this.tone(200, 60, 0.6, { type: 'sine', vol: 0.5, pos }); this.noise(0.4, { type: 'bandpass', freq: 900, vol: 0.3, pos }); }
   footstep() {
     if (this.throttle('step', 0.2)) return;

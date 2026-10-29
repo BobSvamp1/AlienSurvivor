@@ -9,24 +9,28 @@
 import { mulberry32 } from '../core/rng.js';
 
 const COST = {
-  swarmling: 0.6, drone: 1, serpent: 1.4, spitter: 2, wasp: 2, leaper: 2.4, bloater: 3,
-  ravager: 3.4, burrower: 4, floater: 4, bulwark: 6.5, brute: 6,
+  swarmling: 0.6, drone: 1, serpent: 1.4, spitter: 2, wasp: 2, leaper: 2.4, bloater: 3, splitter: 3.4,
+  ravager: 3.4, corroder: 3.2, charger: 5.5, burrower: 4, floater: 4, mender: 5, stalker: 4, bulwark: 6.5, brute: 6,
 };
 
 // introduction order is shuffled inside each tier
 const TIERS = [
-  ['swarmling', 'spitter', 'serpent'],
-  ['leaper', 'wasp', 'bloater', 'ravager'],
-  ['burrower', 'floater', 'brute', 'bulwark'],
+  ['swarmling', 'spitter', 'serpent', 'splitter'],
+  ['leaper', 'wasp', 'bloater', 'ravager', 'corroder', 'charger'],
+  ['burrower', 'floater', 'brute', 'bulwark', 'mender', 'stalker'],
 ];
+
+//              wave: 0  1  2  3  4  5  6  7  8  9 10  11  12  13  14
+const UNLOCK = [0, 0, 1, 2, 3, 3, 4, 5, 6, 8, 8, 10, 12, 14, 16];
 
 export const THEMES = {
   mixed: { name: '', types: null, weight: 3 },
-  swarm: { name: 'SWARM', types: ['swarmling', 'serpent', 'drone', 'leaper', 'ravager'], weight: 1, countBoost: 1.15 },
-  heavy: { name: 'ARMORED', types: ['brute', 'bulwark', 'drone', 'bloater', 'spitter'], weight: 1 },
+  swarm: { name: 'SWARM', types: ['swarmling', 'serpent', 'drone', 'leaper', 'ravager', 'splitter'], weight: 1, countBoost: 1.15 },
+  heavy: { name: 'ARMORED', types: ['brute', 'bulwark', 'drone', 'bloater', 'spitter', 'charger', 'mender'], weight: 1 },
   air: { name: 'AIR RAID', types: ['wasp', 'floater', 'drone'], weight: 1 },
-  hunters: { name: 'HUNTERS', types: ['leaper', 'ravager', 'serpent', 'wasp', 'drone'], weight: 1 },
-  siege: { name: 'SIEGE', types: ['spitter', 'bloater', 'brute', 'burrower', 'floater', 'drone'], weight: 1 },
+  hunters: { name: 'HUNTERS', types: ['leaper', 'ravager', 'serpent', 'wasp', 'drone', 'stalker'], weight: 1 },
+  siege: { name: 'SIEGE', types: ['spitter', 'bloater', 'brute', 'burrower', 'floater', 'drone', 'corroder', 'charger'], weight: 1 },
+  ghost: { name: 'PHANTOM', types: ['stalker', 'serpent', 'corroder', 'drone', 'mender'], weight: 0.7 },
 };
 
 export function waveBudget(wave) {
@@ -40,23 +44,41 @@ export class WavePlanner {
     const r = this.rng;
     // types the map favours tend to show up earlier in their tier
     this.order = TIERS.flatMap((tier) => tier.map((t) => [t, r() * (bias[t] || 1)]).sort((a, b) => b[1] - a[1]).map((x) => x[0]));
-    this.firstBoss = r() < 0.5 ? 'queen' : 'titan';
+    // boss order: the Queen first (wave 5), then a heavy one, the Wyrm, and the last one
+    const b = r() < 0.5 ? ['titan', 'overseer'] : ['overseer', 'titan'];
+    this.bossOrder = ['queen', b[0], 'wyrm', b[1]];
+    this.bossN = 0;
     this.lastTheme = 'mixed';
   }
 
-  // the alien type introduced on this wave (or null)
-  introOf(wave) {
-    const i = wave - 2;
-    return i >= 0 && i < this.order.length ? this.order[i] : null;
+  // how many alien types are unlocked by a wave: one new type per wave at first, two
+  // per wave later, none on boss waves, so every type shows up within a 15-wave mission
+  unlockedCount(wave) {
+    const n = wave < UNLOCK.length ? UNLOCK[Math.max(0, wave)] : this.order.length;
+    return Math.min(this.order.length, n);
   }
 
+  // the alien types introduced on this wave
+  introsOf(wave) {
+    return this.order.slice(this.unlockedCount(wave - 1), this.unlockedCount(wave));
+  }
+
+  introOf(wave) { return this.introsOf(wave)[0] || null; }
+
   unlocked(wave) {
-    return ['drone', ...this.order.slice(0, Math.max(0, wave - 1))];
+    return ['drone', ...this.order.slice(0, this.unlockedCount(wave))];
+  }
+
+  nextBoss() {
+    const b = this.bossOrder[this.bossN % this.bossOrder.length];
+    this.bossN++;
+    return b;
   }
 
   plan(wave, countMult = 1, opts = {}) {
     const r = this.rng;
-    const intro = this.introOf(wave);
+    const intros = this.introsOf(wave);
+    const intro = intros[0] || null;
     const avail = this.unlocked(wave);
     let budget = waveBudget(wave) * countMult;
 
@@ -76,7 +98,7 @@ export class WavePlanner {
     let pool = (T.types ? avail.filter((t) => T.types.includes(t)) : avail.slice()).filter((t) => t !== 'drone');
     for (let i = pool.length - 1; i > 0; i--) { const j = Math.floor(r() * (i + 1)); [pool[i], pool[j]] = [pool[j], pool[i]]; }
     const kinds = Math.min(pool.length, 2 + Math.floor(wave / 7) + (r() < 0.35 ? 1 : 0));
-    const chosen = pool.slice(0, kinds).filter((t) => t !== intro);
+    const chosen = pool.slice(0, kinds).filter((t) => !intros.includes(t));
 
     const counts = {};
     const spend = (type, pts) => {
@@ -84,8 +106,9 @@ export class WavePlanner {
       counts[type] = (counts[type] || 0) + n;
     };
     // a new alien gets a big, clear group so you notice it
-    if (intro) spend(intro, budget * 0.28);
-    const rest = budget * (intro ? 0.72 : 1);
+    const introShare = intros.length > 1 ? 0.2 : 0.28;
+    for (const t of intros) spend(t, budget * introShare);
+    const rest = budget * (1 - introShare * intros.length);
     const droneShare = theme === 'air' ? 0.15 : T.types && !T.types.includes('drone') ? 0 : chosen.length ? 0.3 : 1;
     if (droneShare) spend('drone', rest * droneShare);
     if (chosen.length) {
@@ -96,25 +119,21 @@ export class WavePlanner {
 
     // spawn order: shuffled, with the new alien arriving as one pack near the start
     let list = [];
-    for (const [t, n] of Object.entries(counts)) if (t !== intro) for (let i = 0; i < n; i++) list.push(t);
+    for (const [t, n] of Object.entries(counts)) if (!intros.includes(t)) for (let i = 0; i < n; i++) list.push(t);
     for (let i = list.length - 1; i > 0; i--) { const j = Math.floor(r() * (i + 1)); [list[i], list[j]] = [list[j], list[i]]; }
-    if (intro) list.splice(Math.min(list.length, 3), 0, ...Array(counts[intro]).fill(intro));
+    intros.forEach((t, k) => list.splice(Math.min(list.length, 3 + k * 8), 0, ...Array(counts[t]).fill(t)));
 
     // bosses: every 5th wave, more of them deep into a run
     const bosses = [];
     if (opts.final) {
-      // the last wave of a mission: both bosses
-      bosses.push(this.firstBoss, this.firstBoss === 'queen' ? 'titan' : 'queen');
+      // the last wave of a mission: two bosses (the ones not seen yet come first)
+      bosses.push(this.nextBoss(), this.nextBoss());
       for (const b of bosses) list.splice(Math.floor(list.length * (0.3 + r() * 0.4)), 0, b);
     } else if (wave % 5 === 0) {
       const n = 1 + Math.floor(Math.max(0, wave - 15) / 10);
-      for (let i = 0; i < n; i++) {
-        const k = wave / 5 + i;
-        // the Queen comes first (wave 5), the Titan at wave 10, then it varies
-        bosses.push(wave === 5 ? 'queen' : wave === 10 ? 'titan' : k % 2 === 1 ? this.firstBoss : this.firstBoss === 'queen' ? 'titan' : 'queen');
-      }
+      for (let i = 0; i < n; i++) bosses.push(this.nextBoss());
       for (const b of bosses) list.splice(Math.floor(list.length * (0.35 + r() * 0.3)), 0, b);
     }
-    return { list, theme, themeName: T.name, intro, boss: bosses[0] || null };
+    return { list, theme, themeName: T.name, intro, intros, boss: bosses[0] || null, bosses };
   }
 }

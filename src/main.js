@@ -8,7 +8,14 @@ import { Upgrades } from './core/upgrades.js';
 import { computeMods } from './data/upgrades.js';
 import { getMap, DIFFICULTIES } from './data/maps.js';
 import { WavePlanner } from './data/waves.js';
-import { ENEMIES } from './data/enemies.js';
+import { ENEMIES, ENEMY_ORDER } from './data/enemies.js';
+
+const BOSS_LINES = {
+  queen: 'The Brood Queen approaches',
+  titan: 'A Hive Titan is coming',
+  wyrm: 'Something huge is tunnelling towards you',
+  overseer: 'The Overseer is coming. Watch the sky',
+};
 import { BUILDINGS } from './data/buildings.js';
 import { getClass, CLASSES } from './data/classes.js';
 import { World } from './world/world.js';
@@ -165,7 +172,7 @@ function loadWorld(mapId) {
 function warmup() {
   const temp = [];
   const wasInGame = game.inGame;
-  for (const t of ['drone', 'spitter', 'bloater', 'queen', 'wasp', 'serpent', 'ravager', 'floater', 'bulwark']) temp.push(game.enemies.spawn(t, 0, -9999, { hp: 1, dmg: 1 }, false));
+  for (const t of ENEMY_ORDER) if (!ENEMIES[t].burrows) temp.push(game.enemies.spawn(t, 0, -9999, { hp: 1, dmg: 1 }, false, { warm: true }));
   const models = Object.keys(BUILDINGS).map((t) => { const P = buildModel(t, 2); P.group.position.set(0, 0, -9990); game.r.scene.add(P.group); return P.group; });
   game.fx.burst(new THREE.Vector3(0, -50, 0), '#fff', 4, 1, 0.1);
   game.enemies.updateLegs();
@@ -203,7 +210,7 @@ function startWave() {
   const n = game.activeHives.length;
   hives.forEach((h, i) => (h.active = game.activeHives.includes(i)));
   game.world.nightTarget = 1;
-  const info = { k: 'wave', w: game.wave, boss: plan.boss, n, total: game.waveTotal, theme: plan.themeName, intro: plan.intro, final };
+  const info = { k: 'wave', w: game.wave, boss: plan.boss, n, total: game.waveTotal, theme: plan.themeName, intro: plan.intro, intros: plan.intros, final };
   game.net.event(info);
   game.showWaveStart(info);
 }
@@ -225,11 +232,12 @@ game.showWaveStart = (e) => {
   if (e.final) {
     game.hud.message('FINAL WAVE', 'Everything the hives have left is coming. Hold the core!', { kicker: 'WARNING', style: 'boss', dur: 4.5 });
   } else if (e.boss) {
-    game.hud.message(`WAVE ${e.w}`, e.boss === 'queen' ? 'The Brood Queen approaches' : 'A Hive Titan is coming', { kicker: 'WARNING', style: 'boss', dur: 4 });
+    game.hud.message(`WAVE ${e.w}`, BOSS_LINES[e.boss] || 'A boss is coming', { kicker: 'WARNING', style: 'boss', dur: 4 });
   } else {
     game.hud.message(`WAVE ${e.w}`, `${e.total} aliens from ${e.n} ${e.n === 1 ? 'hive' : 'hives'}`, { kicker: e.theme ? `${e.theme} WAVE` : 'NIGHT FALLS', style: 'danger', dur: 3.2 });
   }
-  if (e.intro) game.hud.introAlien(e.intro, ENEMIES[e.intro]);
+  const intros = e.intros || (e.intro ? [e.intro] : []);
+  if (intros.length) game.hud.introAliens(intros.map((t) => ENEMIES[t]));
 
   game.audio.wave(!!e.boss);
   if (game.armoryOpen) game.closeArmory();
@@ -286,7 +294,7 @@ function updateWave(dt) {
       const z = h.pos.z + Math.sin(a) * 1.2;
       const mult = game.enemyMult();
       // bosses are scaled more gently than the swarm, so they are a challenge rather than a wall
-      if (type === 'queen' || type === 'titan') {
+      if (ENEMIES[type].boss) {
         const w = game.wave;
         mult.hp *= w <= 5 ? 0.5 : w <= 10 ? 0.45 : w <= 15 ? 0.5 : w <= 20 ? 0.62 : 0.8;
         if (!game.endless && w === game.totalWaves) mult.hp *= 0.85; // the final wave has two of them

@@ -89,6 +89,18 @@ class RigBase {
 
   plantFeet() {}
 
+  // Phase Stalker cloak: 0 = fully visible, 1 = a faint shimmer (the shadow still shows)
+  setCloak(v) {
+    const mats = [this.skin, this.shell, this.eyeMat];
+    if (this.cloakQ === undefined) for (const m of mats) { m.transparent = true; m.needsUpdate = true; }
+    const q = Math.round(v * 25) / 25;
+    if (q === this.cloakQ) return;
+    this.cloakQ = q;
+    this.skin.opacity = this.shell.opacity = 1 - 0.88 * q;
+    this.eyeMat.opacity = 1 - 0.55 * q;
+    this.skin.depthWrite = this.shell.depthWrite = q < 0.5;
+  }
+
   die(flipSide = 1) {
     this.dead = true;
     this.deathT = 0;
@@ -565,6 +577,21 @@ export class JellyRig extends RigBase {
     this.hitMeshes.push(organ);
     this.organ = organ;
     this.head = organ;
+    // Overseer: a ring of eyes around the rim and spines on top
+    this.eyes = [];
+    if (def.rig.eyes) {
+      for (let i = 0; i < def.rig.eyes; i++) {
+        const a = (i / def.rig.eyes) * Math.PI * 2;
+        const eye = this.mesh(sphereGeo, this.eyeMat, this.bell, false);
+        eye.scale.setScalar(0.09 * s);
+        eye.position.set(Math.cos(a) * 0.8 * s, -0.02 * s, Math.sin(a) * 0.8 * s);
+        this.eyes.push(eye);
+        const sp = this.mesh(coneGeo, this.shell, this.bell, false);
+        sp.scale.set(0.06 * s, 0.45 * s, 0.06 * s);
+        sp.position.set(Math.cos(a + 0.4) * 0.55 * s, 0.55 * s, Math.sin(a + 0.4) * 0.55 * s);
+        sp.rotation.set(Math.sin(a + 0.4) * 0.6, 0, -Math.cos(a + 0.4) * 0.6);
+      }
+    }
     // oral arms
     const arm = this.mesh(new THREE.ConeGeometry(0.3 * s, 1.2 * s, 8, 1, true), this.bellMat, this.bell, false);
     arm.position.y = -0.7 * s;
@@ -604,6 +631,7 @@ export class JellyRig extends RigBase {
     }
     this.organ.scale.setScalar(0.35 * s * (1 + Math.sin(t * 5) * 0.08 + this.attackT * 0.4));
     this.glowMat.emissiveIntensity = 1.4 + Math.sin(t * 5) * 0.4 + this.attackT * 2;
+    for (let i = 0; i < this.eyes.length; i++) this.eyes[i].scale.setScalar(0.09 * s * (0.75 + 0.35 * Math.max(0, Math.sin(t * 1.3 + i * 1.7))));
     this.updateMatrices();
     if (opts.lod && !this.dead) return;
 

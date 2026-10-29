@@ -542,8 +542,48 @@ export class EnemyManager {
       } else if (e.bar.visible) e.bar.visible = false;
     }
 
+    this.resolveOverlaps();
     this.updateProjectiles(dt);
     this.updateClouds(dt);
+  }
+
+  // Hard separation: after everyone has moved, aliens that still overlap are pushed
+  // apart (big ones barely move, small ones get shoved), so they don't walk into
+  // each other in crowds and choke points.
+  resolveOverlaps() {
+    const nav = this.game.world.nav;
+    this.buildHash();
+    const pad = 1.12; // bodies are longer than they are wide
+    for (let iter = 0; iter < 2; iter++) {
+      for (const e of this.list) {
+        if (e.dead || e.hidden || e.def.flying || e.leap || e.spawnT < 1) continue;
+        const near = this.neighbours(e);
+        const re = e.def.radius * pad;
+        for (let n = 0; n < near.length; n++) {
+          const o = near[n];
+          if (o === e || o.nid < e.nid || o.leap || o.spawnT < 1) continue; // each pair once
+          const dx = o.pos.x - e.pos.x, dz = o.pos.z - e.pos.z;
+          const min = re + o.def.radius * pad;
+          const d2 = dx * dx + dz * dz;
+          if (d2 >= min * min || Math.abs(o.pos.y - e.pos.y) > 1.5) continue;
+          let d = Math.sqrt(d2), nx, nz;
+          if (d < 1e-4) { const a = Math.random() * Math.PI * 2; nx = Math.cos(a); nz = Math.sin(a); d = 0; } else { nx = dx / d; nz = dz / d; }
+          const over = min - d;
+          const me = e.def.radius * e.def.radius * (e.def.boss ? 6 : 1), mo = o.def.radius * o.def.radius * (o.def.boss ? 6 : 1);
+          const ke = mo / (me + mo), ko = me / (me + mo);
+          this.shove(e, -nx * over * ke, -nz * over * ke, nav);
+          this.shove(o, nx * over * ko, nz * over * ko, nav);
+        }
+      }
+    }
+  }
+
+  shove(e, dx, dz, nav) {
+    const ox = e.pos.x, oz = e.pos.z;
+    e.pos.x += dx; e.pos.z += dz;
+    nav.pushOut(e.pos, e.def.radius * 0.85, ROCK_CAP);
+    // never shoved up a cliff
+    if (groundAt(e.pos.x, e.pos.z) > e.pos.y + CLIMB + 0.2) { e.pos.x = ox; e.pos.z = oz; }
   }
 
   // ------------------------------------------------------------ mender

@@ -310,6 +310,12 @@ export class Player {
     if (groundAt(this.pos.x, this.pos.z) > this.pos.y + CLIMB) { this.pos.x = ox; this.pos.z = oz; }
     const terrain = groundAt(this.pos.x, this.pos.z);
     let standOn = Math.max(rockTop, game.build.standTop(this.pos.x, this.pos.z, RADIUS * 0.7, this.pos.y));
+    // hive mounds are solid: you walk up over them, not through them
+    const hiveTop = game.world.hiveTop(this.pos.x, this.pos.z);
+    if (hiveTop > terrain + 0.05) {
+      if (hiveTop > this.pos.y + CLIMB + 0.3) { this.pos.x = ox; this.pos.z = oz; } // too steep a step: blocked
+      else standOn = Math.max(standOn, game.world.hiveTop(this.pos.x, this.pos.z));
+    }
     {
       const i = nav.ci(this.pos.x), j = nav.cj(this.pos.z);
       if (nav.inside(i, j)) {

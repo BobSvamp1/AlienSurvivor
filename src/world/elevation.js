@@ -46,6 +46,9 @@ export class Elevation {
     for (let j = 0; j < this.nz; j++) for (let i = 0; i < this.nx; i++) {
       this.grid[j * this.nx + i] = this.raw(-this.halfX + i * RES, -this.halfZ + j * RES);
     }
+    // soften the cliff edges a little: a sheer one-cell drop renders as a sawtooth
+    // staircase on the 0.5 m mesh; spread over ~1.5 m it's a clean, steep rock face
+    if (map.smooth !== 0) this.blur(map.smooth ?? 2);
   }
 
   builder() {
@@ -102,6 +105,21 @@ export class Elevation {
         S.push({ kind: 'circle', x, z, r, h, rough: 0.35 });
       },
     };
+  }
+
+  blur(passes) {
+    const { nx, nz } = this;
+    const tmp = new Float32Array(this.grid.length);
+    for (let p = 0; p < passes; p++) {
+      for (const [src, dst, dx, dy] of [[this.grid, tmp, 1, 0], [tmp, this.grid, 0, 1]]) {
+        for (let j = 0; j < nz; j++) for (let i = 0; i < nx; i++) {
+          const a = src[Math.max(0, j - dy) * nx + Math.max(0, i - dx)];
+          const b = src[j * nx + i];
+          const c = src[Math.min(nz - 1, j + dy) * nx + Math.min(nx - 1, i + dx)];
+          dst[j * nx + i] = (a + 2 * b + c) / 4;
+        }
+      }
+    }
   }
 
   // exact (unbaked) height

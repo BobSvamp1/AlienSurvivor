@@ -3,6 +3,7 @@ import { ENEMIES } from '../data/enemies.js';
 import { BugRig, flushLegs } from './bugRig.js';
 import { groundAt, CLIMB } from '../world/elevation.js';
 import { PIT, VOID } from '../world/nav.js';
+import { moundY } from '../world/world.js';
 import { SegmentRig, BipedRig, JellyRig } from './rigs.js';
 
 const _v = new THREE.Vector3();
@@ -93,6 +94,14 @@ export class EnemyManager {
     for (const m of rig.hitMeshes) m.userData.enemy = e;
     e.spawnY = gy;
     if (fromHive) rig.root.position.y = gy + (def.flying ? 0.5 : -1.2 * rig.s);
+    // born in a hive: climb up out of its crater and down the mound
+    const hive = fromHive && !opts.mirror && this.game.world.hiveNear ? this.game.world.hiveNear(x, z, 3) : null;
+    if (hive) {
+      const a = this.game.world.hiveExit(hive) + (Math.random() - 0.5) * 1.6;
+      e.crawl = { hx: hive.pos.x, hz: hive.pos.z, hy: hive.pos.y, a };
+      e.spawnY = groundAt(hive.pos.x + Math.cos(a) * 5.8, hive.pos.z + Math.sin(a) * 5.8);
+      this.crawlPose(e, 0);
+    }
 
     const bar = new THREE.Group();
     const bg = new THREE.Mesh(barGeo, barBgMat);
@@ -300,7 +309,11 @@ export class EnemyManager {
       }
 
       // spawn: crawl out of the hive
-      if (e.spawnT < 1) {
+      if (e.spawnT < 1 && e.crawl) {
+        e.spawnT = Math.min(1, e.spawnT + dt * (def.flying ? 1.1 : 0.75));
+        this.crawlPose(e, e.spawnT);
+        if (e.spawnT >= 1) e.crawl = null;
+      } else if (e.spawnT < 1) {
         e.spawnT = Math.min(1, e.spawnT + dt * 1.6);
         const sy = e.spawnY || 0;
         if (def.flying) e.pos.y = sy + THREE.MathUtils.lerp(0.5, def.hover, e.spawnT);
@@ -331,7 +344,7 @@ export class EnemyManager {
 
       const inPool = !def.flying && nav.poolAt(e.pos.x, e.pos.z);
       let speed = def.speed * e.spdMult * (e.slow > 0 ? (e.slowF || 0.45) : 1) * (inPool ? 0.75 : 1) * (e.shock > 0 ? 0.2 : 1);
-      if (e.spawnT < 1) speed *= 0.3;
+      if (e.spawnT < 1) speed *= e.crawl ? 0 : 0.3;
 
       let desiredX = 0, desiredZ = 0;
       let face = null;
@@ -360,6 +373,23 @@ export class EnemyManager {
         if (def.range) {
           // Spitter: shoot from range at player, or the core
           const t = tgtPlayer && best < def.range ? tgtPlayer : dCore < def.range ? 'core' : null;
+          // nobody to shoot at: bombard the defenses it can see instead
+          if (!t && e.spawnT >= 1) {
+            if (!e.siegeT || e.siegeT < game.time) {
+              e.siegeT = game.time + 0.8;
+              const st = game.build.nearestOfKind(e.pos.x, e.pos.z, def.range * 0.9, (x) => (x.def.turret || x.def.solid) && !x.temp);
+              e.siege = st && Math.abs((st.y || 0) - e.pos.y) < 3 && nav.lineOfSight(e.pos.x, e.pos.z, st.x, st.z) ? st : null;
+            }
+            const st = e.siege;
+            if (st && st.hp > 0) {
+              if (e.attackCd <= 0) {
+                e.attackCd = def.rate;
+                this.spit(e, null, _v.set(st.x, (st.y || 0) + 1.2, st.z));
+              }
+              face = Math.atan2(-(st.x - e.pos.x), -(st.z - e.pos.z));
+              speed = 0;
+            }
+          }
           if (t) {
             if (e.attackCd <= 0 && e.spawnT >= 1) {
               e.attackCd = def.rate;
@@ -587,6 +617,31 @@ export class EnemyManager {
     nav.pushOut(e.pos, e.def.radius * 0.85, ROCK_CAP);
     // never shoved up a cliff or onto a wall
     if (groundAt(e.pos.x, e.pos.z) > e.pos.y + CLIMB + 0.2 || (this.offLimits(e.pos.x, e.pos.z) && !this.offLimits(ox, oz))) { e.pos.x = ox; e.pos.z = oz; }
+  }
+
+  // newborn climbing out of the hive: up through the crater (t < 0.35), over the rim
+  // and down the side of the mound to the ground
+  crawlPose(e, t) {
+    const C = e.crawl;
+    const ca = Math.cos(C.a), sa = Math.sin(C.a);
+    let r, y;
+    if (e.def.flying) {
+      r = 0.6 + t * 2.4;
+      y = C.hy + 0.2 + t * (e.def.hover + 1.5);
+      y = Math.min(y, C.hy + e.def.hover + 1.5);
+    } else if (t < 0.35) {
+      const k = t / 0.35;
+      r = 0.3 + 1.6 * k;
+      y = C.hy - 1.3 + 3.4 * (1 - (1 - k) * (1 - k));
+    } else {
+      const k = (t - 0.35) / 0.65;
+      r = 1.9 + 3.9 * k;
+      y = Math.max(C.hy + moundY(r), THREE.MathUtils.lerp(C.hy + moundY(r), e.spawnY, Math.max(0, (r - 4.6) / 1.2)));
+    }
+    e.pos.set(C.hx + ca * r, y, C.hz + sa * r);
+    e.yaw = Math.atan2(-ca, -sa);
+    e.rig.root.rotation.y = e.yaw;
+    e.vel.set(0, 0, 0);
   }
 
   // where to put a newborn next to its parent: never inside a wall or up on one

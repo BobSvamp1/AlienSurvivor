@@ -57,6 +57,13 @@ function mergeVerts(g) {
 // Natural-looking boulder: lumpy base shape + sharper ridges + a flat-ish bottom
 const _seen = new Set();
 
+// height of a hive mound above its base at distance r from its middle (crater inside)
+export function moundY(r) {
+  if (r >= 5.2) return 0;
+  if (r < 2.2) return Math.max(0.3, 2.2 - (2.2 - r) * 1.2);
+  return Math.max(0, Math.sqrt(Math.max(0, 25 - r * r)) * 0.5);
+}
+
 export function rockGeometry(seed, detail = 3, squash = 0.85) {
   const g = mergeVerts(new THREE.IcosahedronGeometry(1, detail));
   const pos = g.attributes.position;
@@ -276,6 +283,35 @@ export class World {
       }
     }
     return stand;
+  }
+
+  // the hive mounds are solid ground for players: highest mound surface under (x, z)
+  hiveTop(x, z) {
+    let top = -Infinity;
+    for (const h of this.hives || []) {
+      const r = Math.hypot(x - h.pos.x, z - h.pos.z);
+      if (r < 5.2) top = Math.max(top, h.pos.y + moundY(r));
+    }
+    return top;
+  }
+
+  hiveNear(x, z, d) {
+    for (const h of this.hives || []) if (Math.hypot(x - h.pos.x, z - h.pos.z) < d) return h;
+    return null;
+  }
+
+  // which way the swarm leaves a hive: towards the lowest flow distance around it
+  hiveExit(h) {
+    if (h.exitA !== undefined) return h.exitA;
+    const nav = this.nav;
+    let best = Infinity, ba = 0;
+    for (let k = 0; k < 24; k++) {
+      const a = (k / 24) * Math.PI * 2;
+      const d = nav.distAt(h.pos.x + Math.cos(a) * 7, h.pos.z + Math.sin(a) * 7);
+      if (d < best) { best = d; ba = a; }
+    }
+    h.exitA = ba;
+    return ba;
   }
 
   color(hex) { return new THREE.Color(hex); }

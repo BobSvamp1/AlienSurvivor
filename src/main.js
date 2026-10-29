@@ -97,7 +97,7 @@ game.coopK = () => Math.max(0, game.players.length - 1);
 game.enemyMult = () => {
   const d = DIFFICULTIES[game.difficulty];
   const w = game.wave - 1;
-  const ease = (game.mapId && getMap(game.mapId).ease) || 1; // the starter maps are gentler
+  const ease = ((game.mapId && getMap(game.mapId).ease) || 1) * (1 + 0.06 * (game.threat || 0)); // gentler starter maps; tougher when the threat is up
   // health keeps climbing, and from wave 12 the swarm also gets faster
   return {
     hp: (1 + 0.12 * w + 0.007 * w * w) * d.hp * (1 + 0.1 * game.coopK()) * ease,
@@ -201,7 +201,10 @@ function startWave() {
   game.phase = 'wave';
   const d = DIFFICULTIES[game.difficulty];
   const final = !game.endless && game.wave === game.totalWaves;
-  const plan = game.planner.plan(game.wave, d.count * (1 + 0.3 * game.coopK()), { final, finalBosses: getMap(game.mapId).finalBosses });
+  // threat: the better you held the last waves, the bigger the next one
+  const T = game.threat || 0;
+  game.coreAtStart = game.core.hp;
+  const plan = game.planner.plan(game.wave, d.count * (1 + 0.3 * game.coopK()) * (1 + 0.15 * T), { final, finalBosses: getMap(game.mapId).finalBosses });
   game.spawnQueue = plan.list;
   game.waveTotal = game.spawnQueue.length;
   game.spawnTimer = 2;
@@ -212,7 +215,7 @@ function startWave() {
   const n = game.activeHives.length;
   hives.forEach((h, i) => (h.active = game.activeHives.includes(i)));
   game.world.nightTarget = 1;
-  const info = { k: 'wave', w: game.wave, boss: plan.boss, n, total: game.waveTotal, theme: plan.themeName, intro: plan.intro, intros: plan.intros, final };
+  const info = { k: 'wave', w: game.wave, boss: plan.boss, n, total: game.waveTotal, theme: plan.themeName, intro: plan.intro, intros: plan.intros, final, threat: T };
   game.net.event(info);
   game.showWaveStart(info);
 }
@@ -236,7 +239,8 @@ game.showWaveStart = (e) => {
   } else if (e.boss) {
     game.hud.message(`WAVE ${e.w}`, BOSS_LINES[e.boss] || 'A boss is coming', { kicker: 'WARNING', style: 'boss', dur: 4 });
   } else {
-    game.hud.message(`WAVE ${e.w}`, `${e.total} aliens from ${e.n} ${e.n === 1 ? 'hive' : 'hives'}`, { kicker: e.theme ? `${e.theme} WAVE` : 'NIGHT FALLS', style: 'danger', dur: 3.2 });
+    const threat = e.threat ? ` · THREAT ${'▲'.repeat(Math.min(5, e.threat))}${e.threat > 5 ? e.threat : ''}` : '';
+    game.hud.message(`WAVE ${e.w}`, `${e.total} aliens from ${e.n} ${e.n === 1 ? 'hive' : 'hives'}`, { kicker: (e.theme ? `${e.theme} WAVE` : 'NIGHT FALLS') + threat, style: 'danger', dur: 3.2 });
   }
   const intros = e.intros || (e.intro ? [e.intro] : []);
   if (intros.length) game.hud.introAliens(intros.map((t) => ENEMIES[t]));
@@ -252,6 +256,14 @@ function endWave() {
   game.phaseTimer = game.phaseTotal = BUILD_TIME;
   const bonus = 60 + game.wave * 10;
   game.addCredits(bonus);
+  // threat goes up when the core came through (almost) untouched, down when it got hurt
+  const lost = ((game.coreAtStart ?? game.core.hp) - game.core.hp) / game.core.maxHp;
+  const before = game.threat || 0;
+  if (lost < 0.03) game.threat = Math.min(8, before + 1);
+  else if (lost > 0.15) game.threat = Math.max(0, before - 1);
+  const say = (m, kind) => setTimeout(() => { game.net.event({ k: 'toast', m, kind }); game.hud.toast(m, kind); }, 2500);
+  if (game.threat > before) say(`The swarm grows bolder · threat ${game.threat}`, 'warn');
+  else if (game.threat < before) say(`The swarm falters · threat ${game.threat}`, 'good');
   if (game.build.repairWalls()) game.hud.toast('Barricades repaired', 'good');
   game.world.nightTarget = 0;
   game.world.hives.forEach((h) => (h.active = false));
@@ -289,7 +301,10 @@ function updateWave(dt) {
     game.spawnTimer -= dt;
     if (game.spawnQueue.length && game.spawnTimer <= 0) {
       const type = game.spawnQueue.shift();
-      game.spawnTimer = type === 'swarmling' ? 0.18 : Math.max(0.3, 1.15 - game.wave * 0.05);
+      // later waves come in tight packs with short breathers between them
+      game.packN = (game.packN || 0) + 1;
+      if (game.wave >= 6) game.spawnTimer = game.packN % 6 === 0 ? 2.4 : type === 'swarmling' ? 0.14 : 0.26;
+      else game.spawnTimer = type === 'swarmling' ? 0.18 : Math.max(0.3, 1.15 - game.wave * 0.05);
       const hi = game.activeHives[Math.floor(Math.random() * game.activeHives.length)];
       const h = game.world.hives[hi];
       const a = Math.random() * Math.PI * 2;
@@ -362,6 +377,8 @@ game.startGame = (mapId, difficulty, opts = {}) => {
     game.core.hp = game.core.maxHp;
     game.credits = DIFFICULTIES[difficulty].credits;
     game.wave = 0;
+    game.threat = 0;
+    game.packN = 0;
     game.time = 0;
     game.stats = { kills: 0, damage: 0, built: 0, deaths: 0 };
     game.phase = 'build';

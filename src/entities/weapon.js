@@ -520,8 +520,9 @@ export class Weapon {
     cyl(0.026, 0.024, 0.05, M.dark, 0, 0.038, -0.6, g, 10); // choke
     cyl(0.016, 0.016, 0.36, M.dark, 0, -0.008, -0.33, g); // magazine tube
     // vented heat shield over the barrel
-    profile([[-0.18, 0.058], [-0.52, 0.058], [-0.53, 0.046], [-0.18, 0.046]], 0.046, M.panel, 0.004, 0, g);
-    for (let i = 0; i < 6; i++) box(0.048, 0.004, 0.018, M.glow, 0, 0.06, -0.22 - i * 0.05, g);
+    // (clear of the barrel, and the glow strips sit proud of it: no coplanar faces to flicker)
+    profile([[-0.18, 0.071], [-0.52, 0.071], [-0.53, 0.06], [-0.18, 0.06]], 0.046, M.panel, 0.004, 0, g);
+    for (let i = 0; i < 6; i++) box(0.04, 0.004, 0.016, M.glow, 0, 0.0735, -0.22 - i * 0.05, g);
     // shell carrier on the side: glowing orange shells
     for (let i = 0; i < 4; i++) cyl(0.009, 0.009, 0.05, M.orange, 0.036, 0.012, 0.0 - i * 0.026, g, 8);
     box(0.006, 0.012, 0.11, M.dark, 0.032, -0.004, -0.04, g);

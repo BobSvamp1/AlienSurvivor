@@ -184,15 +184,9 @@ function warmup() {
   game.inGame = wasInGame;
 }
 
-game.previewMap = (mapId) => {
-  if (game.inGame) return;
-  fade.classList.remove('out');
-  setTimeout(() => {
-    loadWorld(mapId);
-    game.world.nightTarget = 0.35;
-    fade.classList.add('out');
-  }, 180);
-};
+// the menus always show the squad at the same spot (the map cards have their own previews)
+const MENU_MAP = 'outpost';
+game.previewMap = () => {};
 
 // ------------------------------------------------------------ waves
 function startWave() {
@@ -508,6 +502,7 @@ game.quitToMenu = (keepNet = false) => {
   game.audio.stopLoops();
   game.player.clearInput();
   game.audio.setCombat(false);
+  if (game.world && game.world.map.id !== MENU_MAP) loadWorld(MENU_MAP);
   if (game.world) { game.world.nightTarget = 0.35; game.world.hives.forEach((h) => (h.active = false)); game.core.hp = game.core.maxHp; }
   game.menus.reset('main');
 };
@@ -622,7 +617,8 @@ let last = performance.now();
 let menuT = 0;
 function frame(now) {
   requestAnimationFrame(frame);
-  const dt = Math.min((now - last) / 1000, 0.05);
+  // (the first animation frame can be stamped before `last` was taken: never negative)
+  const dt = Math.max(0, Math.min((now - last) / 1000, 0.05));
   last = now;
   step(dt);
   if (!window.__noRender) game.r.render(now / 1000);
@@ -686,7 +682,7 @@ game.step = step; // used by automated tests
 game.startWave = startWave;
 
 // ------------------------------------------------------------ boot
-loadWorld('outpost');
+loadWorld(MENU_MAP);
 game.world.nightTarget = 0.35;
 game.menus.reset('main');
 setTimeout(() => fade.classList.add('out'), 100);

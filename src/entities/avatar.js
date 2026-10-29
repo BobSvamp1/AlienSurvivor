@@ -44,14 +44,21 @@ function mats(cls, color) {
     rubber: new THREE.MeshStandardMaterial({ color: '#17181b', roughness: 0.92, metalness: 0 }),
     // team paint (stripes, panels): offset so it never fights with the plate under it
     paint: new THREE.MeshStandardMaterial({ color: c.clone().multiplyScalar(0.9), roughness: 0.5, metalness: 0.15, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 }),
-    accent: new THREE.MeshStandardMaterial({ color: c, emissive: c, emissiveIntensity: 2.4, roughness: 0.4, toneMapped: false }),
+    accent: new THREE.MeshStandardMaterial({ color: c, emissive: c, emissiveIntensity: 1.1, roughness: 0.4 }),
     visor: new THREE.MeshPhysicalMaterial({ color: '#b08a3a', metalness: 1, roughness: 0.07, clearcoat: 1, clearcoatRoughness: 0.04, envMapIntensity: 2.6, iridescence: 0.35, iridescenceIOR: 1.6 }),
     glass: new THREE.MeshPhysicalMaterial({ color: '#0b1a22', metalness: 0.8, roughness: 0.05, clearcoat: 1, emissive: c, emissiveIntensity: 0.25, envMapIntensity: 2 }),
-    lens: new THREE.MeshStandardMaterial({ color: '#ffffff', emissive: c, emissiveIntensity: 2.2, roughness: 0.2, toneMapped: false }),
+    lens: new THREE.MeshStandardMaterial({ color: '#ffffff', emissive: c, emissiveIntensity: 1.2, roughness: 0.2 }),
     gold: new THREE.MeshPhysicalMaterial({ color: '#c99a3e', metalness: 1, roughness: 0.2, clearcoat: 0.6 }),
-    lamp: new THREE.MeshStandardMaterial({ color: '#ffffff', emissive: '#fff4dc', emissiveIntensity: 3, toneMapped: false }),
+    lamp: new THREE.MeshStandardMaterial({ color: '#ffffff', emissive: '#fff4dc', emissiveIntensity: 1.6 }),
     hazard: hazardMat(),
   };
+  for (const m of Object.values(cache[key])) {
+    if (m === HAZ) continue;
+    if (m.envMapIntensity !== undefined) m.envMapIntensity = Math.min(m.envMapIntensity ?? 1, 0.5);
+    // the worn-metal roughness map has near-mirror spots: on the heroes' white armour
+    // they caught the sun as blinding highlights that bloomed into a white halo
+    if (m.roughnessMap) { m.roughnessMap = null; m.roughness = Math.max(m.roughness, 0.5); m.needsUpdate = true; }
+  }
   return cache[key];
 }
 

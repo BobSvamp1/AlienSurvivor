@@ -170,7 +170,7 @@ export class Renderer {
       }
       composer.addPass(new ShaderPass(SafeColorShader));
       if (q.bloom) {
-        this.bloom = new UnrealBloomPass(new THREE.Vector2(size.x, size.y), 0.5, 0.55, 0.9);
+        this.bloom = new UnrealBloomPass(new THREE.Vector2(size.x, size.y), 0.35, 0.45, 1.4);
         composer.addPass(this.bloom);
       }
       composer.addPass(new OutputPass());

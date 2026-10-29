@@ -1005,7 +1005,7 @@ export class World {
     this.instanced(new THREE.ConeGeometry(1, 1, 3, 1), new THREE.MeshStandardMaterial({ color: '#fff', roughness: 0.8 }), blades, { shadow: false, colors: bcol });
 
     // Glowing feature props
-    const glowMat = new THREE.MeshStandardMaterial({ color: t.propColor, emissive: t.propColor, emissiveIntensity: 1.8, roughness: 0.25 });
+    const glowMat = new THREE.MeshStandardMaterial({ color: t.propColor, emissive: t.propColor, emissiveIntensity: 0.75, roughness: 0.25 });
     const baseMat = new THREE.MeshStandardMaterial({ color: '#fff', roughness: 0.6 });
     const glows = [];
     const bases = [];
@@ -1529,7 +1529,7 @@ export class World {
     }
     this.paths.update(dt, g.inGame && !g.over && g.phase === 'build', g.nextHives || []);
     if (Math.abs(this.night - this.nightTarget) > 0.001) {
-      this.night += (this.nightTarget - this.night) * Math.min(1, dt * 0.7);
+      this.night += (this.nightTarget - this.night) * THREE.MathUtils.clamp(dt * 0.7, 0, 1);
       this.applyNight(this.night);
     }
     const core = this.core;

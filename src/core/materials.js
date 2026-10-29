@@ -136,5 +136,11 @@ export function wornMetal(color, { metalness = 0.75, roughness = 0.55, repeat = 
   const r = texSet('rust');
   const arm = r.arm.clone(); arm.repeat.set(repeat, repeat); arm.needsUpdate = true;
   const nor = r.nor.clone(); nor.repeat.set(repeat, repeat); nor.needsUpdate = true;
-  return new THREE.MeshStandardMaterial({ color, metalness, roughness, roughnessMap: arm, normalMap: nor, normalScale: new THREE.Vector2(scratches, scratches) });
+  const m = new THREE.MeshStandardMaterial({ color, metalness, roughness, roughnessMap: arm, normalMap: nor, normalScale: new THREE.Vector2(scratches, scratches) });
+  // the map has near-mirror spots that catch the sun as blinding, blooming highlights
+  m.onBeforeCompile = (sh) => {
+    sh.fragmentShader = sh.fragmentShader.replace('#include <roughnessmap_fragment>', '#include <roughnessmap_fragment>\n\troughnessFactor = max(roughnessFactor, 0.32);');
+  };
+  m.customProgramCacheKey = () => 'wornMetal';
+  return m;
 }

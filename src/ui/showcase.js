@@ -48,6 +48,13 @@ export class Showcase {
   }
 
   findSpot(w) {
+    // a hand-picked stage (the menu always shows the same, good-looking spot)
+    const S = w.map.showcase;
+    if (S) return { p: new THREE.Vector3(S.x, groundAt(S.x, S.z), S.z), dir: S.dir };
+    return this.searchSpot(w);
+  }
+
+  searchSpot(w) {
     const nav = w.nav;
     const [cx, cz] = w.map.core;
     const [sx, sz] = w.map.spawn;
@@ -114,8 +121,8 @@ export class Showcase {
     if (this.mode === 'off') this.fresh = true;
     this.mode = mode;
     if (mode === 'off' && this.avatars) for (const a of Object.values(this.avatars)) a.root.visible = false;
-    this.key.intensity = mode === 'off' ? 0 : 22;
-    this.rim.intensity = mode === 'off' ? 0 : 14;
+    this.key.intensity = mode === 'off' ? 0 : 6;
+    this.rim.intensity = mode === 'off' ? 0 : 10;
   }
 
   update(dt) {
@@ -167,7 +174,7 @@ export class Showcase {
     cam.lookAt(this.camLook);
     if (cam.fov !== 42) { cam.fov = 42; cam.updateProjectionMatrix(); }
     // lights: warm key from the front-left, cool rim from behind
-    toWorld(-1.5, 3.2, 3.2, this.key.position);
+    toWorld(-2.5, 4.6, 5.5, this.key.position);
     toWorld(3.0, 2.6, -3.5, this.rim.position);
     void fp;
     return true;

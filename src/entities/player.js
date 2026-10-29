@@ -376,7 +376,8 @@ export class Player {
     }
 
     // fell into a chasm: hurt and climb back out at the spawn point
-    if (this.pos.y < -3.5) {
+    // (only once you actually reach the glowing floor of the chasm / the lava)
+    if (this.pos.y < (game.world.pitFloor ?? -3.9) + 0.4) {
       this.pos.set(this.spawnX, groundAt(this.spawnX, this.spawnZ), this.spawnZ);
       this.vel.set(0, 0, 0);
       this.lastGroundY = this.pos.y;

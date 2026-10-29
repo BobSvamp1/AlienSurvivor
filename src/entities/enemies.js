@@ -516,7 +516,7 @@ export class EnemyManager {
             e.fallV = (e.fallV || 0) + 20 * dt;
             e.pos.y = Math.max(gy, e.pos.y - e.fallV * dt);
           } else { e.pos.y = gy; e.fallV = 0; }
-          if (e.pos.y < -2.5) { this.fallDeath(e); continue; } // shoved into a chasm
+          if (e.pos.y < (game.world.pitFloor ?? -2.9) + 0.4) { this.fallDeath(e); continue; } // shoved into a chasm
         }
         // keep out of the core
         const cdx = e.pos.x - core.pos.x, cdz = e.pos.z - core.pos.z;

@@ -1096,17 +1096,24 @@ export class World {
       list.push(dummy.matrix.clone());
     }
     if (!list.length) return;
+    // the floor of the chasms: one sheet at the very bottom (per-cell squares stuck out
+    // on the sloped walls as floating green patches)
+    let lo = Infinity;
+    for (const mx of list) lo = Math.min(lo, mx.elements[13]);
+    this.pitFloor = lo;
     if (this.theme.lava) { this.buildLava(list); return; }
     // deep down: a faint toxic glow far below, so the chasm reads as bottomless
     const mat = new THREE.MeshStandardMaterial({ color: '#06120a', emissive: '#3aff6a', emissiveIntensity: 0.35, roughness: 0.6, fog: false });
-    const m = this.instanced(new THREE.PlaneGeometry(1, 1), mat, list, { shadow: false });
-    m.receiveShadow = false;
+    const { halfX, halfZ } = this.map;
+    const sheet = new THREE.Mesh(new THREE.PlaneGeometry(halfX * 2, halfZ * 2).rotateX(-Math.PI / 2), mat);
+    sheet.position.y = lo;
+    this.group.add(sheet);
     // a faint glow rising from the chasm
     for (let k = 0; k < Math.min(2, Math.ceil(list.length / 12)); k++) {
       const mx = list[Math.floor((k + 0.5) * list.length / Math.min(2, Math.ceil(list.length / 12)))];
       const p = new THREE.Vector3().setFromMatrixPosition(mx);
       const l = new THREE.PointLight('#7aff3a', 6, 12, 1.5);
-      l.position.set(p.x, p.y + 1.5, p.z);
+      l.position.set(p.x, lo + 1.5, p.z);
       this.group.add(l);
     }
   }
@@ -1114,8 +1121,7 @@ export class World {
   // molten rock at the bottom of the fissures: one big flowing sheet, glowing up the walls
   buildLava(list) {
     const L = this.theme.lava;
-    let lo = Infinity;
-    for (const mx of list) lo = Math.min(lo, mx.elements[13]);
+    const lo = this.pitFloor;
     const cv = document.createElement('canvas');
     cv.width = cv.height = 256;
     const g = cv.getContext('2d');
@@ -1201,7 +1207,7 @@ export class World {
         if (!nav.inside(ni, nj)) continue;
         const nb = nav.blocked[nav.idx(ni, nj)];
         // hazard stripes where the floor ends at a chasm
-        if (nb === PIT) put(stripes, x + di * 0.86, h + 0.025, z + dj * 0.86, Math.atan2(di, dj));
+        // (no hazard stripes at the chasm edges any more: they looked like tape on rock)
       }
     }
     const dark = pbr('gunmetal', { color: '#40454c' });

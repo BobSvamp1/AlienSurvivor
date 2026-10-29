@@ -220,6 +220,10 @@ export class Avatar {
     this.skinPose = new Pose(S.data.bones);
     this.boneList = S.data.bones.map((n) => [n, model.getObjectByName(n)]).filter((b) => b[1]);
     this.pitchBones = [[S.bones.Spine1, 0.3], [S.bones.Spine2, 0.45], [S.bones.Neck, 0.25]].filter((b) => b[0]);
+    // the head's forward axis in its own bone space (the model faces +z in the bind pose)
+    this.root.updateMatrixWorld(true);
+    const fwd = new THREE.Vector3(0, 0, 1).applyQuaternion(model.getWorldQuaternion(new THREE.Quaternion()));
+    this.headFwd = S.bones.Head ? fwd.applyQuaternion(S.bones.Head.getWorldQuaternion(new THREE.Quaternion()).invert()) : null;
     const add = (geo, mat, parent, x = 0, y = 0, z = 0, rx = 0, ry = 0, rz = 0, shadow = true) => {
       const m = new THREE.Mesh(geo, mat);
       m.position.set(x, y, z);
@@ -776,8 +780,23 @@ export class Avatar {
     for (let i = 0; i < this.flames.length; i++) {
       if (this.flames[i].visible) this.root.worldToLocal(this.flameAnchors[i].getWorldPosition(this.flames[i].position));
     }
-    // weapon: grip in the right palm, barrel pointing through the left hand
+    // the rifle clips keep the head bowed over the sights: lift it to look where the
+    // player aims (split between neck and head)
     const B = this.skin.bones, g = this.gun;
+    if (this.headFwd && alive > 0.01) {
+      B.Head.getWorldQuaternion(_pw);
+      _h3.copy(this.headFwd).applyQuaternion(_pw).applyQuaternion(_tq.copy(_rq).invert());
+      const cur = Math.atan2(_h3.y, Math.hypot(_h3.x, _h3.z));
+      const d = THREE.MathUtils.clamp(pitch * 0.9 + 0.06 - cur, -0.9, 0.9) * alive;
+      for (const [b, frac] of [[B.Neck, 0.45], [B.Head, 0.55]]) {
+        if (!b) continue;
+        b.parent.getWorldQuaternion(_pw);
+        _pq.setFromAxisAngle(_ax, d * frac);
+        _tq.copy(_pw).invert().multiply(_pq).multiply(_pw);
+        b.quaternion.premultiply(_tq);
+      }
+    }
+    // weapon: grip in the right palm, barrel pointing through the left hand
     g.visible = alive > 0.5;
     if (!g.visible) return;
     const rh = palm(B, 'Right', 0.45, _h1);

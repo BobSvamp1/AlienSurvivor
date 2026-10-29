@@ -144,7 +144,7 @@ export class Showcase {
       if (!show) return;
       // face the camera, each one a little differently
       const turn = this.mode === 'hero' ? Math.sin(this.t * 0.45) * 0.55 + 0.25 : [0.25, -0.15, 0.45, -0.3][i];
-      a.update(dt, _p, rot + Math.PI + turn, -0.32 + Math.sin(this.t * 0.7 + i) * 0.03, 0, false);
+      a.update(dt, _p, rot + Math.PI + turn, -0.08 + Math.sin(this.t * 0.7 + i) * 0.03, 0, false);
       a.tag.visible = false;
     });
     // camera

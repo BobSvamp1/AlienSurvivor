@@ -90,14 +90,14 @@ export const ENEMIES = {
   queen: {
     name: 'Brood Queen',
     desc: 'Boss. A huge mother that constantly births swarmlings while marching on the core.',
-    hp: 2400, speed: 1.8, dmg: 45, rate: 1.6, reward: 400, radius: 2.4, structDmg: 140, aggro: 14, boss: true,
+    hp: 2200, speed: 1.8, dmg: 45, rate: 1.6, reward: 300, radius: 2.4, structDmg: 140, aggro: 14, boss: true,
     colors: { skin: '#1e1030', shell: '#7a2a9a', eye: '#ff3df0', blood: '#ff6af5' },
     rig: { scale: 3.2, legs: 6, legLen: 1.25, bodyH: 0.75, abdomen: [1.6, 0.8], thorax: [0.6, 0.48], head: 0.42, ridges: 8, crown: true, sac: '#ff6af5' },
   },
   titan: {
     name: 'Hive Titan',
     desc: 'Boss. A living siege engine. Its ground slam flattens everything nearby.',
-    hp: 5200, speed: 1.6, dmg: 40, rate: 2.0, reward: 700, radius: 2.8, structDmg: 200, aggro: 12, boss: true, slamRadius: 7,
+    hp: 4200, speed: 1.6, dmg: 40, rate: 2.0, reward: 500, radius: 2.8, structDmg: 200, aggro: 12, boss: true, slamRadius: 7,
     colors: { skin: '#2a2c33', shell: '#46586b', eye: '#ff2a2a', blood: '#ff5a3d' },
     rig: { scale: 3.6, legs: 6, legLen: 1.15, bodyH: 0.8, abdomen: [1.1, 0.7], thorax: [0.8, 0.6], head: 0.5, ridges: 5, plates: true, horns: true },
   },

@@ -54,6 +54,21 @@ export function saveRecord(mapId, difficulty, wave) {
   return false;
 }
 
+const STARS_KEY = 'alien-survivor-stars';
+export function saveStars(mapId, difficulty, stars) {
+  const r = safeRead(STARS_KEY) || {};
+  const k = `${mapId}:${difficulty}`;
+  if (!r[k] || stars > r[k]) { r[k] = stars; safeWrite(STARS_KEY, r); return true; }
+  return false;
+}
+export function bestStars(mapId, difficulty = null) {
+  const r = safeRead(STARS_KEY) || {};
+  if (difficulty) return r[`${mapId}:${difficulty}`] || 0;
+  let best = 0;
+  for (const k of Object.keys(r)) if (k.startsWith(mapId + ':')) best = Math.max(best, r[k]);
+  return best;
+}
+
 export function bestWave(mapId) {
   const r = loadRecords();
   let best = 0;

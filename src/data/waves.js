@@ -30,7 +30,7 @@ export const THEMES = {
 };
 
 export function waveBudget(wave) {
-  return 4 + wave * 5 + 0.2 * wave * wave;
+  return 6 + wave * 6.5 + 0.25 * wave * wave;
 }
 
 export class WavePlanner {
@@ -54,7 +54,7 @@ export class WavePlanner {
     return ['drone', ...this.order.slice(0, Math.max(0, wave - 1))];
   }
 
-  plan(wave, countMult = 1) {
+  plan(wave, countMult = 1, opts = {}) {
     const r = this.rng;
     const intro = this.introOf(wave);
     const avail = this.unlocked(wave);
@@ -102,7 +102,11 @@ export class WavePlanner {
 
     // bosses: every 5th wave, more of them deep into a run
     const bosses = [];
-    if (wave % 5 === 0) {
+    if (opts.final) {
+      // the last wave of a mission: both bosses
+      bosses.push(this.firstBoss, this.firstBoss === 'queen' ? 'titan' : 'queen');
+      for (const b of bosses) list.splice(Math.floor(list.length * (0.3 + r() * 0.4)), 0, b);
+    } else if (wave % 5 === 0) {
       const n = 1 + Math.floor(Math.max(0, wave - 15) / 10);
       for (let i = 0; i < n; i++) {
         const k = wave / 5 + i;

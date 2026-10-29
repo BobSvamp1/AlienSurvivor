@@ -404,6 +404,10 @@ export class Audio {
     if (this.throttle('flame', 0.12)) return;
     this.noise(0.22, { type: 'lowpass', freq: 900, vol: 0.35, pos });
   }
+  jet(pos) {
+    this.noise(0.12, { type: 'lowpass', freq: 520, vol: 0.09, pos });
+    this.noise(0.1, { type: 'bandpass', freq: 2400, q: 0.8, vol: 0.025, pos });
+  }
   stab(pos) {
     if (this.throttle('stab', 0.08)) return;
     this.noise(0.06, { type: 'highpass', freq: 2500, vol: 0.3, pos });

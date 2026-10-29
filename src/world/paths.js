@@ -59,21 +59,21 @@ export class PathPreview {
   }
 
   // follow the flow field from (x, z) to the core
-  trace(x, z) {
+  trace(x, z, alt = false) {
     const nav = this.world.nav;
     const pts = [[x, z]];
     const out = { x: 0, z: 0, cell: -1 };
     let cx = x, cz = z;
     const seen = new Set();
     for (let s = 0; s < 600; s++) {
-      const ok = nav.flowDir(cx, cz, out);
+      const ok = nav.flowDir(cx, cz, out, null, alt);
       if (ok !== true) break;
       const i = out.cell % nav.cols, j = (out.cell / nav.cols) | 0;
       if (seen.has(out.cell)) break;
       seen.add(out.cell);
       cx = nav.cx(i); cz = nav.cz(j);
       pts.push([cx, cz]);
-      if (nav.dist[out.cell] === 0) break;
+      if ((alt ? nav.dist2 : nav.dist)[out.cell] === 0) break;
     }
     const c = this.world.core.pos;
     pts.push([c.x + (pts[pts.length - 1][0] - c.x) * 0.6, c.z + (pts[pts.length - 1][1] - c.z) * 0.6]);
@@ -122,26 +122,30 @@ export class PathPreview {
     for (const m of this.meshes) { this.group.remove(m); m.geometry.dispose(); }
     this.meshes = [];
     const hives = this.world.hives;
+    const routes = [];
     hives.forEach((h, i) => {
-      const next = nextHives.includes(i);
-      if (!next) return;
-      const pts = this.trace(h.pos.x, h.pos.z);
-      if (pts.length < 3) return;
+      if (!nextHives.includes(i)) return;
+      routes.push({ pts: this.trace(h.pos.x, h.pos.z), main: true });
+      // the second route some of the swarm takes (dimmer, narrower)
+      if (this.world.nav.routeOk[i]) routes.push({ pts: this.trace(h.pos.x, h.pos.z, true), main: false });
+    });
+    for (const { pts, main } of routes) {
+      if (pts.length < 3) continue;
       const mat = new THREE.ShaderMaterial({
-        uniforms: { map: { value: this.tex }, color: { value: new THREE.Color('#ff5a7a') }, opacity: { value: 0 }, shift: { value: 0 } },
+        uniforms: { map: { value: this.tex }, color: { value: new THREE.Color(main ? '#ff5a7a' : '#ff9a4a') }, opacity: { value: 0 }, shift: { value: 0 }, k: { value: main ? 1 : 0.6 } },
         vertexShader: `attribute float alpha; varying float vA; varying vec2 vUv;
           void main() { vA = alpha; vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }`,
-        fragmentShader: `uniform sampler2D map; uniform vec3 color; uniform float opacity; uniform float shift; varying float vA; varying vec2 vUv;
-          void main() { vec4 t = texture2D(map, vec2(vUv.x - shift, vUv.y)); gl_FragColor = vec4(color * t.rgb * 1.6, t.a * vA * opacity); }`,
+        fragmentShader: `uniform sampler2D map; uniform vec3 color; uniform float opacity; uniform float shift; uniform float k; varying float vA; varying vec2 vUv;
+          void main() { vec4 t = texture2D(map, vec2(vUv.x - shift, vUv.y)); gl_FragColor = vec4(color * t.rgb * 1.6, t.a * vA * opacity * k); }`,
         transparent: true, depthWrite: false, blending: THREE.AdditiveBlending,
         polygonOffset: true, polygonOffsetFactor: -4, polygonOffsetUnits: -4,
       });
-      const m = new THREE.Mesh(this.ribbon(pts, 1.25), mat);
+      const m = new THREE.Mesh(this.ribbon(pts, main ? 1.25 : 0.9), mat);
       m.userData.noAO = true;
       m.frustumCulled = false;
       this.group.add(m);
       this.meshes.push(m);
-    });
+    }
     this.dirty = false;
   }
 

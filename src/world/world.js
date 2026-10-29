@@ -174,6 +174,7 @@ export class World {
     this.clutter = buildClutter(this, this.clutterPlan);
     this.buildPools();
     this.buildPits();
+    if (this.map.dressing) this.buildDressing();
     this.buildCore();
     this.buildHives();
     this.paths = new PathPreview(this);
@@ -963,6 +964,96 @@ export class World {
     }
   }
 
+  // ---------------------------------------------------------------- station dressing
+  // Corridor maps cut into the rock get an outpost look: pipes and lamps along the
+  // straight walls, hazard stripes at chasm edges and lit door frames at the gates.
+  buildDressing() {
+    const nav = this.nav;
+    const D = this.map.dressing;
+    const rng = mulberry32(991);
+    const dummy = new THREE.Object3D();
+    const lamps = [], lampGlow = [], pipes = [], brackets = [], stripes = [], vents = [];
+    const at = (x, z) => this.elev.at(x, z);
+    const N4 = [[1, 0], [-1, 0], [0, 1], [0, -1]];
+    const put = (list, x, y, z, ry, sx = 1, sy = 1, sz = 1) => {
+      dummy.position.set(x, y, z);
+      dummy.rotation.set(0, ry, 0);
+      dummy.scale.set(sx, sy, sz);
+      dummy.updateMatrix();
+      list.push(dummy.matrix.clone());
+    };
+    for (let j = 0; j < nav.rows; j++) for (let i = 0; i < nav.cols; i++) {
+      const k = nav.idx(i, j);
+      if (nav.blocked[k] || !isFinite(nav.dist[k])) continue;
+      const x = nav.cx(i), z = nav.cz(j), h = nav.h[k];
+      for (const [di, dj] of N4) {
+        const ni = i + di, nj = j + dj;
+        if (!nav.inside(ni, nj)) continue;
+        const nb = nav.blocked[nav.idx(ni, nj)];
+        // straight rock wall right at the cell edge
+        if ((nb === CLIFF || nb === VOID) && at(x + di * 0.7, z + dj * 0.7) < h + 0.4 && at(x + di * 1.3, z + dj * 1.3) > h + 3) {
+          const ry = Math.atan2(di, dj); // local +Z points into the wall
+          const wx = x + di * 0.97, wz = z + dj * 0.97;
+          const tx = -dj, tz = di; // along the wall
+          // two pipes along every straight wall
+          put(pipes, wx - di * 0.1, h + 0.95, wz - dj * 0.1, ry + Math.PI / 2, 1, 1, 1);
+          put(pipes, wx - di * 0.12, h + 1.18, wz - dj * 0.12, ry + Math.PI / 2, 0.75, 1, 0.75);
+          if ((i + j) % 2 === 0) put(brackets, wx - di * 0.05, h + 1.06, wz - dj * 0.05, ry);
+          // a lamp on every third wall cell
+          if ((i * 3 + j * 5 + (di + 2) * 7 + (dj + 2) * 11) % 3 === 0) {
+            put(lamps, wx - di * 0.06, h + 2.7, wz - dj * 0.06, ry);
+            put(lampGlow, wx - di * 0.13, h + 2.62, wz - dj * 0.13, ry);
+          } else if (rng() < 0.18) {
+            put(vents, wx - di * 0.04, h + 0.35, wz - dj * 0.04, ry);
+          }
+          void tx; void tz;
+        }
+        // hazard stripes where the floor ends at a chasm
+        if (nb === PIT) put(stripes, x + di * 0.86, h + 0.025, z + dj * 0.86, Math.atan2(di, dj));
+      }
+    }
+    const metal = pbr('metal', { color: '#9aa4ae', metalness: 0.8 });
+    const dark = pbr('gunmetal', { color: '#40454c' });
+    const pipeGeo = new THREE.CylinderGeometry(0.07, 0.07, 2.02, 10).rotateZ(Math.PI / 2);
+    this.instanced(pipeGeo, metal, pipes, { shadow: false });
+    this.instanced(new THREE.BoxGeometry(0.12, 0.42, 0.12), dark, brackets, { shadow: false });
+    this.instanced(new THREE.BoxGeometry(0.7, 0.22, 0.14), dark, lamps, { shadow: false });
+    const glowMat = new THREE.MeshStandardMaterial({ color: '#ffffff', emissive: D.light || '#ffe2b0', emissiveIntensity: 2.6, toneMapped: false });
+    this.instanced(new THREE.BoxGeometry(0.56, 0.07, 0.02), glowMat, lampGlow, { shadow: false, receive: false });
+    this.instanced(new THREE.BoxGeometry(0.55, 0.32, 0.06), dark, vents, { shadow: false });
+    // hazard stripes: yellow/black texture
+    const c = document.createElement('canvas');
+    c.width = 128; c.height = 16;
+    const g2 = c.getContext('2d');
+    g2.fillStyle = '#16161a'; g2.fillRect(0, 0, 128, 16);
+    g2.fillStyle = '#f2b51e';
+    for (let x = -16; x < 128; x += 16) { g2.beginPath(); g2.moveTo(x, 16); g2.lineTo(x + 8, 16); g2.lineTo(x + 16, 0); g2.lineTo(x + 8, 0); g2.fill(); }
+    const st = new THREE.CanvasTexture(c);
+    st.colorSpace = THREE.SRGBColorSpace;
+    st.anisotropy = 4;
+    const stripeMat = new THREE.MeshStandardMaterial({ map: st, roughness: 0.7, polygonOffset: true, polygonOffsetFactor: -2 });
+    this.instanced(new THREE.PlaneGeometry(2, 0.26).rotateX(-Math.PI / 2), stripeMat, stripes, { shadow: false });
+
+    // lit door frames at the gates
+    const frame = [], frameGlow = [];
+    for (const [x, z, axis, w] of this.map.gates || []) {
+      const h = at(x, z);
+      const ry = axis === 'x' ? Math.PI / 2 : 0; // 'x': aliens pass along x
+      const ax = axis === 'x' ? 0 : 1, az = axis === 'x' ? 1 : 0; // across the gate
+      for (const sgn of [-1, 1]) {
+        put(frame, x + ax * sgn * (w / 2 + 0.15), h + 1.9, z + az * sgn * (w / 2 + 0.15), ry, 1, 1, 1);
+        put(frameGlow, x + ax * sgn * (w / 2 - 0.02), h + 1.9, z + az * sgn * (w / 2 - 0.02), ry, 1, 1, 1);
+      }
+      put(frame, x, h + 3.95, z, ry + Math.PI / 2, 1, 1, (w + 0.9) / 0.5);
+      const l = new THREE.PointLight(D.gateLight || '#ffb070', 5, 10, 1.6);
+      l.position.set(x, h + 3.2, z);
+      this.group.add(l);
+    }
+    this.instanced(new THREE.BoxGeometry(0.5, 3.8, 0.7), dark, frame.filter((_, i) => i % 3 !== 2), { shadow: true });
+    this.instanced(new THREE.BoxGeometry(0.7, 0.5, 0.5), dark, frame.filter((_, i) => i % 3 === 2), { shadow: true });
+    this.instanced(new THREE.BoxGeometry(0.06, 3.0, 0.12), glowMat, frameGlow, { shadow: false, receive: false });
+  }
+
   // ---------------------------------------------------------------- core
   buildCore() {
     const g = new THREE.Group();
@@ -1058,7 +1149,21 @@ export class World {
     const cableMat = new THREE.MeshStandardMaterial({ color: '#16181c', roughness: 0.55, metalness: 0.1 });
     for (let i = 0; i < 7; i++) {
       const a = (i / 7) * Math.PI * 2 + 0.3;
-      const len = 6 + crng() * 6;
+      let len = 6 + crng() * 6;
+      // keep cables on the level floor around the core (not up a wall or into a chasm)
+      const flatTo = (l) => {
+        for (let t = 3.3; t <= 3.3 + l + 0.5; t += 0.5) {
+          const k = (t - 3.3) / Math.max(l, 0.01);
+          const aa = a + 0.2 * k;
+          const x = cx + Math.cos(aa) * t, z = cz + Math.sin(aa) * t;
+          if (Math.abs(this.elev.at(x, z) - coreY) > 0.15) return false;
+          const ci = this.nav.ci(x), cj = this.nav.cj(z);
+          if (!this.nav.inside(ci, cj) || this.nav.blocked[this.nav.idx(ci, cj)]) return false;
+        }
+        return true;
+      };
+      while (len > 1.5 && !flatTo(len)) len -= 0.75;
+      if (len <= 1.5) continue;
       const geo = cableGeometry(
         { x: Math.cos(a) * 3.3, z: Math.sin(a) * 3.3 },
         { x: Math.cos(a + 0.2) * (3.3 + len), z: Math.sin(a + 0.2) * (3.3 + len) },

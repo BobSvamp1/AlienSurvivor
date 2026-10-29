@@ -1,9 +1,22 @@
 import * as THREE from 'three';
 import { groundAt, CLIMB } from '../world/elevation.js';
+import { VOID } from '../world/nav.js';
 
 const EYE = 1.65;
 const RADIUS = 0.42;
 const RESPAWN_TIME = 6;
+const JET_TIME = 2.6; // seconds of jetpack fuel
+const JET_CEIL = 3.2; // max hover height above the ground you took off from
+const STEEP = 2.2; // ground steeper than this is a cliff face you slide off
+
+// steepness of the ground at (x, z)
+function slopeAt(x, z, out) {
+  const gx = (groundAt(x + 0.3, z) - groundAt(x - 0.3, z)) / 0.6;
+  const gz = (groundAt(x, z + 0.3) - groundAt(x, z - 0.3)) / 0.6;
+  if (out) { out.x = gx; out.z = gz; }
+  return Math.hypot(gx, gz);
+}
+const _g = { x: 0, z: 0 };
 
 export class Player {
   constructor(game) {
@@ -82,6 +95,12 @@ export class Player {
     this.sprinting = false;
     this.landKick = 0;
     this.poolT = 0;
+    this.fuel = 1;
+    this.fuelDelay = 0;
+    this.jetting = false;
+    this.jetSnd = 0;
+    this.lastGroundY = this.pos.y;
+    this.safe = { x, z, t: 0 };
   }
 
   faceTowards(x, z) {
@@ -137,6 +156,8 @@ export class Player {
         this.shield = this.maxShield;
         this.pos.set(this.spawnX, groundAt(this.spawnX, this.spawnZ), this.spawnZ);
         this.vel.set(0, 0, 0);
+        this.lastGroundY = this.pos.y;
+        this.fuel = 1;
         this.faceTowards(this.spawnX, this.spawnZ - 10);
         game.hud.setDead(false);
       } else return;
@@ -163,7 +184,10 @@ export class Player {
     const len = Math.hypot(wx, wz);
     if (len > 0) { wx /= len; wz /= len; }
 
-    const accel = this.onGround ? 12 : 2.5;
+    // jetpack: hold Space in the air to hover slowly (limited fuel, refills on the ground)
+    const wantJet = k.has('Space') && !this.onGround && this.fuel > 0 && this.vel.y < 2.5;
+    this.jetting = wantJet;
+    const accel = this.onGround ? 12 : this.jetting ? 4.5 : 2.5;
     const a = Math.min(1, accel * dt);
     this.vel.x += (wx * speed - this.vel.x) * a;
     this.vel.z += (wz * speed - this.vel.z) * a;
@@ -171,11 +195,34 @@ export class Player {
       this.vel.y = 8.2;
       this.onGround = false;
     }
-    this.vel.y -= 24 * dt;
+    if (this.jetting) {
+      // rise gently up to a ceiling, then hover; never higher than JET_CEIL over where you took off
+      const ceil = this.lastGroundY + JET_CEIL;
+      const target = this.pos.y < ceil - 0.3 ? 2.4 : this.pos.y < ceil ? 0.4 : -0.6;
+      this.vel.y += (target - this.vel.y) * Math.min(1, dt * 5);
+      this.fuel = Math.max(0, this.fuel - dt / (JET_TIME * game.mods.jetMult));
+      this.fuelDelay = 0.5;
+      this.jetSnd -= dt;
+      if (this.jetSnd <= 0) {
+        this.jetSnd = 0.085;
+        game.audio.jet(this.pos);
+        if (Math.random() < 0.7) game.fx.fire(new THREE.Vector3(this.pos.x - Math.sin(this.yaw) * -0.35, this.pos.y + 0.6, this.pos.z - Math.cos(this.yaw) * -0.35));
+      }
+    } else {
+      this.vel.y -= 24 * dt;
+    }
     // horizontal move: you can walk up ramps and small steps, but not up a cliff
     const ox = this.pos.x, oz = this.pos.z;
     const nx = ox + this.vel.x * dt, nz = oz + this.vel.z * dt;
-    const canGo = (x, z) => groundAt(x, z) <= this.pos.y + CLIMB;
+    const nav = game.world.nav;
+    const canGo = (x, z) => {
+      const g = groundAt(x, z);
+      if (g > this.pos.y + CLIMB) return false;
+      // places the swarm can never reach are off limits (tops of the rock walls)
+      const i = nav.ci(x), j = nav.cj(z);
+      if (nav.inside(i, j) && nav.blocked[nav.idx(i, j)] === VOID && g > this.lastGroundY + 1.2) return false;
+      return true;
+    };
     if (canGo(nx, nz)) { this.pos.x = nx; this.pos.z = nz; }
     else if (canGo(nx, oz)) { this.pos.x = nx; this.vel.z = 0; }
     else if (canGo(ox, nz)) { this.pos.z = nz; this.vel.x = 0; }
@@ -196,11 +243,39 @@ export class Player {
     } else {
       this.onGround = false;
     }
+    // a cliff face is too steep to stand on: slide down it (no jumping up walls)
+    this.sliding = false;
+    if (this.onGround && slopeAt(this.pos.x, this.pos.z, _g) > STEEP) {
+      const l = Math.hypot(_g.x, _g.z) || 1;
+      this.pos.x -= (_g.x / l) * 7 * dt;
+      this.pos.z -= (_g.z / l) * 7 * dt;
+      this.pos.y = Math.min(this.pos.y, groundAt(this.pos.x, this.pos.z) + 0.05);
+      this.pos.y = Math.max(this.pos.y, groundAt(this.pos.x, this.pos.z));
+      this.sliding = true;
+      this.onGround = false;
+    }
+    if (this.onGround) {
+      this.lastGroundY = this.pos.y;
+      this.fuelDelay -= dt;
+      if (this.fuelDelay <= 0) this.fuel = Math.min(1, this.fuel + dt * 0.55);
+      // remember a safe spot the swarm can reach too
+      const i = nav.ci(this.pos.x), j = nav.cj(this.pos.z);
+      const b = nav.inside(i, j) ? nav.blocked[nav.idx(i, j)] : VOID;
+      this.safe.t -= dt;
+      if (b !== VOID && this.safe.t <= 0) { this.safe.x = this.pos.x; this.safe.z = this.pos.z; this.safe.t = 0.4; }
+      if (b === VOID && this.pos.y > 1.5 && this.pos.y > groundAt(this.safe.x, this.safe.z) + 1.5) {
+        // somehow got on top of a wall: put them back where they were
+        this.pos.set(this.safe.x, groundAt(this.safe.x, this.safe.z), this.safe.z);
+        this.lastGroundY = this.pos.y;
+        this.vel.set(0, 0, 0);
+      }
+    }
 
     // fell into a chasm: hurt and climb back out at the spawn point
     if (this.pos.y < -3.5) {
       this.pos.set(this.spawnX, groundAt(this.spawnX, this.spawnZ), this.spawnZ);
       this.vel.set(0, 0, 0);
+      this.lastGroundY = this.pos.y;
       this.hurt(35);
       game.hud.toast('You fell into the abyss!', 'warn');
     }

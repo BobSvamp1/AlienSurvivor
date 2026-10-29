@@ -14,7 +14,7 @@ export class Hud {
       coreFill: $('core-fill'), coreGhost: $('core-ghost'), coreText: $('core-text'), coreBar: document.querySelector('.core-bar'),
       boss: $('boss'), bossName: $('boss-name'), bossFill: $('boss-fill'),
       credits: $('credit-num'), kills: $('kill-num'), creditsRes: document.querySelector('.res.credits'),
-      hpText: $('hp-text'), hpMax: $('hp-max'), hpFill: $('hp-fill'), health: $('health'), shFill: $('sh-fill'), shText: $('sh-text'),
+      hpText: $('hp-text'), hpMax: $('hp-max'), hpFill: $('hp-fill'), health: $('health'), shFill: $('sh-fill'), shText: $('sh-text'), jetFill: $('jet-fill'),
       ammo: $('ammo'), ammoCur: $('ammo-cur'), ammoMax: $('ammo-max'), reloadBar: $('reload-bar'), reloadHint: $('reload-hint'),
       hotbar: $('hotbar'), buildHint: $('build-hint'),
       sp: $('struct-panel'), spIcon: $('sp-icon'), spName: $('sp-name'), spLevel: $('sp-level'), spFill: $('sp-fill'), spHp: $('sp-hp'), spStats: $('sp-stats'), spActions: $('sp-actions'),
@@ -154,10 +154,11 @@ export class Hud {
     if (g.phase === 'build') {
       const s = Math.ceil(g.phaseTimer);
       this.set('wt', el.waveTitle, g.wave === 0 ? 'PREPARE DEFENSES' : `WAVE ${g.wave} CLEARED`);
-      this.set('ws', el.waveSub, `Wave ${g.wave + 1} in <b>${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}</b> &nbsp;·&nbsp; <kbd>G</kbd> start now &nbsp;·&nbsp; <kbd>B</kbd> armory`, 'innerHTML');
+      const nextName = g.totalWaves && g.wave + 1 === g.totalWaves ? 'FINAL WAVE' : `Wave ${g.wave + 1}${g.totalWaves ? ' of ' + g.totalWaves : ''}`;
+      this.set('ws', el.waveSub, `${nextName} in <b>${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}</b> &nbsp;·&nbsp; <kbd>G</kbd> start now &nbsp;·&nbsp; <kbd>B</kbd> armory`, 'innerHTML');
       this.sty('s1', el.waveProg, 'transform', `scaleX(${g.phaseTimer / g.phaseTotal})`);
     } else if (g.phase === 'wave') {
-      this.set('wt', el.waveTitle, `WAVE ${g.wave}`);
+      this.set('wt', el.waveTitle, g.totalWaves ? (g.wave === g.totalWaves ? 'FINAL WAVE' : `WAVE ${g.wave} / ${g.totalWaves}`) : `WAVE ${g.wave}`);
       const rem = g.enemiesRemaining();
       this.set('ws', el.waveSub, `${rem} ${rem === 1 ? 'alien' : 'aliens'} remaining`);
       this.sty('s2', el.waveProg, 'transform', `scaleX(${Math.min(1, rem / Math.max(1, g.waveTotal))})`);
@@ -201,6 +202,8 @@ export class Hud {
     this.sty('s7', el.shFill, 'transform', `scaleX(${shK})`);
     this.set('sh', el.shText, `SHIELD ${Math.ceil(p.shield)}`);
     this.tog('t21', el.health, 'shield-down', shK <= 0.001 && !p.dead);
+    this.sty('s7j', el.jetFill, 'transform', `scaleX(${Math.round(p.fuel * 50) / 50})`);
+    this.tog('t21j', el.health, 'jet', p.fuel < 0.999 || p.jetting);
     this.sty('s8', el.lowhp, 'opacity', !p.dead && hpK < 0.3 ? (0.3 - hpK) * 3 : 0);
 
     // ammo

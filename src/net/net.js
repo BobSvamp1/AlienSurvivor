@@ -142,8 +142,8 @@ export class Net {
       this.conns.set(id, c);
       const name = String(m.name || 'Player').slice(0, 14);
       this.players.push({ id, name, color: this.colorOf(id) });
-      c.send({ t: 'welcome', id, code: this.code, players: this.players, map: this.lobbyMap, diff: this.lobbyDiff });
-      this.broadcast({ t: 'lobby', players: this.players, map: this.lobbyMap, diff: this.lobbyDiff });
+      c.send({ t: 'welcome', id, code: this.code, players: this.players, map: this.lobbyMap, diff: this.lobbyDiff, endless: this.lobbyEndless });
+      this.broadcast({ t: 'lobby', players: this.players, map: this.lobbyMap, diff: this.lobbyDiff, endless: this.lobbyEndless });
       if (game.inGame) {
         // joining a game in progress
         c.send(this.startMsg());
@@ -208,21 +208,22 @@ export class Net {
     const name = this.nameOf(id);
     this.players = this.players.filter((p) => p.id !== id);
     this.removeRemote(id);
-    this.broadcast({ t: 'lobby', players: this.players, map: this.lobbyMap, diff: this.lobbyDiff });
+    this.broadcast({ t: 'lobby', players: this.players, map: this.lobbyMap, diff: this.lobbyDiff, endless: this.lobbyEndless });
     this.game.hud.toast(`${name} left`, 'warn');
     this.lobbyChanged();
   }
 
   // host picked a map in the lobby
-  setLobbyMission(map, diff) {
+  setLobbyMission(map, diff, endless = this.lobbyEndless) {
     this.lobbyMap = map;
     this.lobbyDiff = diff;
-    if (this.isHost) this.broadcast({ t: 'lobby', players: this.players, map, diff });
+    this.lobbyEndless = !!endless;
+    if (this.isHost) this.broadcast({ t: 'lobby', players: this.players, map, diff, endless: this.lobbyEndless });
   }
 
   startMsg() {
     const g = this.game;
-    return { t: 'start', map: g.mapId, diff: g.difficulty, players: this.players };
+    return { t: 'start', map: g.mapId, diff: g.difficulty, endless: !!g.endless, players: this.players };
   }
 
   broadcast(m, exceptId = -1) {
@@ -253,6 +254,7 @@ export class Net {
           this.players = m.players;
           this.lobbyMap = m.map;
           this.lobbyDiff = m.diff;
+          this.lobbyEndless = !!m.endless;
           conn.onData = (mm) => this.onClientData(mm);
           this.lobbyChanged();
           resolve();
@@ -272,11 +274,12 @@ export class Net {
       this.players = m.players;
       this.lobbyMap = m.map;
       this.lobbyDiff = m.diff;
+      this.lobbyEndless = !!m.endless;
       for (const [id] of this.remotes) if (!this.players.some((p) => p.id === id)) this.removeRemote(id);
       this.lobbyChanged();
     } else if (m.t === 'start') {
       this.players = m.players;
-      game.startGame(m.map, m.diff, { fromNet: true });
+      game.startGame(m.map, m.diff, { fromNet: true, endless: m.endless });
     } else if (m.t === 's') {
       if (game.inGame && game.world) this.applySnapshot(m);
     } else if (m.t === 'hurt') {
@@ -464,6 +467,7 @@ export class Net {
     const g = this.game;
     const r = this.remotes.get(id);
     const from = r ? r.avatar.muzzleWorld(_v) : _v.set(f[0], f[1], f[2]);
+    if (r) r.avatar.fire();
     _w.set(to[0], to[1], to[2]);
     g.fx.tracer(from, _w, '#fff0b0', 0.03, 0.06);
     g.fx.muzzle(from, '#ffd27a', 0.5);
@@ -477,6 +481,7 @@ export class Net {
       case 'wave': g.showWaveStart(e); break;
       case 'clear': g.showWaveCleared(e); break;
       case 'over': g.netGameOver(e); break;
+      case 'win': g.showVictory(e); break;
       case 'spit': g.enemies.visualProjectile(e); break;
       case 'shock': g.fx.shockwave(e.x, e.z, e.r); g.audio.slam(_v.set(e.x, 0, e.z)); g.shake(1.2, _v); break;
       case 'boom': g.fx.explosion(_v.set(e.x, e.y, e.z), e.c || '#ffb43d', e.r); g.audio.explosion(_v, e.s || 1); break;

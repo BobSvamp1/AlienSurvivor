@@ -334,7 +334,8 @@ export function buildModel(type, level) {
     g.add(hinge);
     part(hinge, box(1.5, 0.1, 1.55), m.launchPad, 0, 0.05, -0.78, false);
     const arrow = new THREE.Shape();
-    arrow.moveTo(0, -0.55); arrow.lineTo(0.35, -0.1); arrow.lineTo(0.13, -0.1); arrow.lineTo(0.13, 0.45); arrow.lineTo(-0.13, 0.45); arrow.lineTo(-0.13, -0.1); arrow.lineTo(-0.35, -0.1); arrow.closePath();
+    // (the shape's +Y becomes -Z after rotateX(-90°), so the tip points the way aliens are thrown)
+    arrow.moveTo(0, 0.55); arrow.lineTo(-0.35, 0.1); arrow.lineTo(-0.13, 0.1); arrow.lineTo(-0.13, -0.45); arrow.lineTo(0.13, -0.45); arrow.lineTo(0.13, 0.1); arrow.lineTo(0.35, 0.1); arrow.closePath();
     const ar = part(hinge, new THREE.ShapeGeometry(arrow).rotateX(-Math.PI / 2), trim, 0, 0.105, -0.78, false);
     ar.renderOrder = 2;
     for (const x of [-0.6, 0.6]) part(g, cyl(0.06, 0.06, 0.5, 8).rotateX(Math.PI / 2), m.metal, x, 0.2, 0.55, false);
@@ -540,6 +541,19 @@ export class BuildSystem {
     const i = nav.ci(p.x), j = nav.cj(p.z);
     const x = nav.cx(i), z = nav.cz(j);
     const reason = this.invalidReason(i, j, x, z);
+    if (reason && this.mode && BUILDINGS[this.mode].wall) {
+      // wall traps snap to the closest free spot along the wall you aim at
+      let best = null, bd = Infinity;
+      for (let a = -1; a <= 1; a++) for (let c = -1; c <= 1; c++) {
+        const ii = i + a, jj = j + c;
+        if (!nav.inside(ii, jj)) continue;
+        const xx = nav.cx(ii), zz = nav.cz(jj);
+        if (this.invalidReason(ii, jj, xx, zz)) continue;
+        const dd = (xx - p.x) ** 2 + (zz - p.z) ** 2 + ((xx - pl.x) ** 2 + (zz - pl.z) ** 2) * 0.05;
+        if (dd < bd) { bd = dd; best = { i: ii, j: jj, x: xx, z: zz, valid: true, reason: null }; }
+      }
+      if (best) return best;
+    }
     return { i, j, x, z, valid: !reason, reason };
   }
 
@@ -1313,7 +1327,7 @@ export class BuildSystem {
     if (s.parts.hinge) s.parts.hinge.rotation.x = Math.sin(Math.min(1, s.flip) * Math.PI) * 0.9;
     if (s.cd > 0) return;
     const heavy = (e) => e.def.boss || ((e.type === 'brute' || e.type === 'bulwark') && !lv.heavy);
-    const on = this.enemiesOn(s, -0.15).filter((e) => !heavy(e));
+    const on = this.enemiesOn(s, -0.15).filter((e) => !heavy(e) && !(e.flungT > 0));
     if (!on.length) return;
     s.cd = 1 / lv.rate;
     s.flip = 1;

@@ -3,7 +3,7 @@ import './style.css';
 import { Renderer } from './core/renderer.js';
 import { installHeightFog } from './world/atmosphere.js';
 installHeightFog();
-import { loadSettings, saveRecord, bestWave } from './core/settings.js';
+import { loadSettings, saveRecord, bestWave, saveStars } from './core/settings.js';
 import { Upgrades } from './core/upgrades.js';
 import { computeMods } from './data/upgrades.js';
 import { getMap, DIFFICULTIES } from './data/maps.js';
@@ -77,11 +77,18 @@ const clickToPlay = document.getElementById('click-to-play');
 // ------------------------------------------------------------ helpers
 game.addCredits = (n) => { game.credits += Math.round(n); };
 
+// co-op: more players means a bigger and slightly tougher swarm
+game.coopK = () => Math.max(0, game.players.length - 1);
+
 game.enemyMult = () => {
   const d = DIFFICULTIES[game.difficulty];
   const w = game.wave - 1;
-  // endless: health keeps climbing, and from wave 12 the swarm also gets faster
-  return { hp: (1 + 0.12 * w + 0.007 * w * w) * d.hp, dmg: (1 + 0.05 * w) * d.dmg, spd: 1 + Math.min(0.45, Math.max(0, game.wave - 12) * 0.02) };
+  // health keeps climbing, and from wave 12 the swarm also gets faster
+  return {
+    hp: (1 + 0.12 * w + 0.007 * w * w) * d.hp * (1 + 0.1 * game.coopK()),
+    dmg: (1 + 0.05 * w) * d.dmg,
+    spd: 1 + Math.min(0.45, Math.max(0, game.wave - 12) * 0.02),
+  };
 };
 
 game.enemiesRemaining = () => (game.net.isClient ? game.netRemaining || 0 : game.spawnQueue.length + game.enemies.aliveCount);
@@ -178,7 +185,8 @@ function startWave() {
   game.wave++;
   game.phase = 'wave';
   const d = DIFFICULTIES[game.difficulty];
-  const plan = game.planner.plan(game.wave, d.count);
+  const final = !game.endless && game.wave === game.totalWaves;
+  const plan = game.planner.plan(game.wave, d.count * (1 + 0.3 * game.coopK()), { final });
   game.spawnQueue = plan.list;
   game.waveTotal = game.spawnQueue.length;
   game.spawnTimer = 2;
@@ -189,7 +197,7 @@ function startWave() {
   const n = game.activeHives.length;
   hives.forEach((h, i) => (h.active = game.activeHives.includes(i)));
   game.world.nightTarget = 1;
-  const info = { k: 'wave', w: game.wave, boss: plan.boss, n, total: game.waveTotal, theme: plan.themeName, intro: plan.intro };
+  const info = { k: 'wave', w: game.wave, boss: plan.boss, n, total: game.waveTotal, theme: plan.themeName, intro: plan.intro, final };
   game.net.event(info);
   game.showWaveStart(info);
 }
@@ -208,7 +216,9 @@ function chooseNextHives() {
 game.showWaveStart = (e) => {
   game.wave = e.w;
   game.audio.setCombat(true);
-  if (e.boss) {
+  if (e.final) {
+    game.hud.message('FINAL WAVE', 'Everything the hives have left is coming. Hold the core!', { kicker: 'WARNING', style: 'boss', dur: 4.5 });
+  } else if (e.boss) {
     game.hud.message(`WAVE ${e.w}`, e.boss === 'queen' ? 'The Brood Queen approaches' : 'A Hive Titan is coming', { kicker: 'WARNING', style: 'boss', dur: 4 });
   } else {
     game.hud.message(`WAVE ${e.w}`, `${e.total} aliens from ${e.n} ${e.n === 1 ? 'hive' : 'hives'}`, { kicker: e.theme ? `${e.theme} WAVE` : 'NIGHT FALLS', style: 'danger', dur: 3.2 });
@@ -221,9 +231,10 @@ game.showWaveStart = (e) => {
 };
 
 function endWave() {
+  if (!game.endless && game.wave >= game.totalWaves) { victory(); return; }
   game.phase = 'build';
   game.phaseTimer = game.phaseTotal = BUILD_TIME;
-  const bonus = 70 + game.wave * 15;
+  const bonus = 60 + game.wave * 10;
   game.addCredits(bonus);
   game.world.nightTarget = 0;
   game.world.hives.forEach((h) => (h.active = false));
@@ -268,8 +279,12 @@ function updateWave(dt) {
       const x = h.pos.x + Math.cos(a) * 1.2;
       const z = h.pos.z + Math.sin(a) * 1.2;
       const mult = game.enemyMult();
-      // the first bosses are a bit gentler, so they are a challenge rather than a wall
-      if (type === 'queen' || type === 'titan') mult.hp *= game.wave <= 5 ? 0.55 : game.wave <= 10 ? 0.75 : 1;
+      // bosses are scaled more gently than the swarm, so they are a challenge rather than a wall
+      if (type === 'queen' || type === 'titan') {
+        const w = game.wave;
+        mult.hp *= w <= 5 ? 0.5 : w <= 10 ? 0.45 : w <= 15 ? 0.5 : w <= 20 ? 0.62 : 0.8;
+        if (!game.endless && w === game.totalWaves) mult.hp *= 0.85; // the final wave has two of them
+      }
       game.enemies.spawn(type, x, z, mult, true);
       game.fx.burst(new THREE.Vector3(x, h.pos.y + 1.5, z), '#b04dff', 6, 4, 0.12);
     }
@@ -307,6 +322,8 @@ game.startGame = (mapId, difficulty, opts = {}) => {
   setTimeout(() => {
     game.mapId = mapId;
     game.difficulty = difficulty;
+    game.endless = !!opts.endless;
+    game.totalWaves = game.endless ? 0 : getMap(mapId).waves || 20;
     game.session = (game.session || 0) + 1;
     // always rebuild the world for a fresh round
     if (game.world) { game.world.dispose(); game.world = null; }
@@ -347,6 +364,40 @@ game.startGame = (mapId, difficulty, opts = {}) => {
     }
     fade.classList.add('out');
   }, 350);
+};
+
+// all waves survived: the mission is won
+function victory() {
+  if (game.over) return;
+  const frac = game.core.hp / game.core.maxHp;
+  const stars = frac >= 0.9 ? 3 : frac >= 0.5 ? 2 : 1;
+  const info = { k: 'win', stats: { ...game.stats }, waves: game.wave, time: game.time, stars, core: Math.round(frac * 100) };
+  game.net.event(info);
+  if (game.net.isHost) game.net.broadcast(game.net.buildSnapshot());
+  game.phase = 'won';
+  game.showVictory(info);
+}
+
+game.showVictory = (e) => {
+  if (game.over) return;
+  game.over = true;
+  game.audio.stopLoops();
+  game.build.setMode(null);
+  game.player.clearInput();
+  game.audio.setCombat(false);
+  game.audio.cleared();
+  game.world.nightTarget = 0;
+  game.hud.message('VICTORY', `The outpost holds! ${'★'.repeat(e.stars)}${'☆'.repeat(3 - e.stars)}`, { kicker: 'MISSION COMPLETE', dur: 3 });
+  const better = saveStars(game.mapId, game.difficulty, e.stars);
+  saveRecord(game.mapId, game.difficulty, e.waves);
+  const session = game.session;
+  setTimeout(() => {
+    if (!game.over || game.session !== session) return;
+    if (document.pointerLockElement) document.exitPointerLock();
+    game.hud.show(false);
+    game.weapon.root.visible = false;
+    game.menus.showGameOver({ ...e.stats, waves: e.waves, time: e.time }, better, { win: true, stars: e.stars, core: e.core });
+  }, 3200);
 };
 
 function gameOver() {

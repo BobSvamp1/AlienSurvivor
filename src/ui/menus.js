@@ -6,7 +6,7 @@ import { UPGRADES, UPGRADE_TABS } from '../data/upgrades.js';
 import { NavGrid } from '../world/nav.js';
 import { Elevation } from '../world/elevation.js';
 import { mulberry32 } from '../core/rng.js';
-import { bestWave, saveSettings } from '../core/settings.js';
+import { bestWave, bestStars, saveSettings } from '../core/settings.js';
 
 const $ = (id) => document.getElementById(id);
 const SCREENS = ['main', 'coop', 'lobby', 'maps', 'settings', 'howto', 'pause', 'armory', 'over'];
@@ -19,6 +19,7 @@ export class Menus {
     this.current = null;
     this.selectedMap = MAPS[0].id;
     this.difficulty = 'veteran';
+    this.endless = false;
     this.armoryTab = 'weapon';
     this.howtoTab = 'controls';
 
@@ -37,12 +38,12 @@ export class Menus {
       if (b && b !== this.lastHover) { this.lastHover = b; game.audio.hover(); }
     });
 
-    $('start-btn').addEventListener('click', () => game.startGame(this.selectedMap, this.difficulty));
+    $('start-btn').addEventListener('click', () => game.startGame(this.selectedMap, this.difficulty, { endless: this.endless }));
     this.setupCoop();
     $('resume-btn').addEventListener('click', () => game.resume());
-    $('restart-btn').addEventListener('click', () => game.startGame(game.mapId, game.difficulty));
+    $('restart-btn').addEventListener('click', () => game.startGame(game.mapId, game.difficulty, { endless: game.endless }));
     $('quit-btn').addEventListener('click', () => game.quitToMenu());
-    $('retry-btn').addEventListener('click', () => game.startGame(game.mapId, game.difficulty));
+    $('retry-btn').addEventListener('click', () => game.startGame(game.mapId, game.difficulty, { endless: game.endless }));
     $('change-map-btn').addEventListener('click', () => {
       if (game.net.isHost) { game.backToLobby(); this.go('maps'); return; }
       game.quitToMenu();
@@ -159,17 +160,18 @@ export class Menus {
       const body = document.createElement('div');
       body.className = 'mc-body';
       body.innerHTML = `<div class="mc-name">${m.name}</div><div class="mc-sub">${m.subtitle}</div><div class="mc-desc">${m.description}</div>
-        <div class="mc-meta"><span class="mc-stars">${'★'.repeat(m.difficulty)}${'☆'.repeat(3 - m.difficulty)}</span><span class="mc-best"></span></div>`;
+        <div class="mc-meta"><span class="mc-diff">${m.waves || 20} WAVES · ${['', 'EASY', 'MEDIUM', 'HARD'][m.difficulty]}</span><span class="mc-best"></span></div>`;
       card.appendChild(body);
       this.drawPreview(c, m);
       card.addEventListener('click', () => {
         this.selectedMap = m.id;
         this.refreshMapCards();
-        this.game.net.setLobbyMission(this.selectedMap, this.difficulty);
+        this.game.net.setLobbyMission(this.selectedMap, this.difficulty, this.endless);
+        this.refreshDifficulty();
         this.game.audio.uiSelect();
         this.game.previewMap(m.id);
       });
-      card.addEventListener('dblclick', () => this.game.startGame(m.id, this.difficulty));
+      card.addEventListener('dblclick', () => this.game.startGame(m.id, this.difficulty, { endless: this.endless }));
       wrap.appendChild(card);
     }
   }
@@ -177,8 +179,10 @@ export class Menus {
   refreshMapCards() {
     for (const card of $('map-cards').children) {
       card.classList.toggle('sel', card.dataset.id === this.selectedMap);
+      const st = bestStars(card.dataset.id, this.difficulty);
       const b = bestWave(card.dataset.id);
-      card.querySelector('.mc-best').textContent = b ? `Best: wave ${b}` : 'Not played yet';
+      const best = card.querySelector('.mc-best');
+      best.innerHTML = `<span class="mc-stars${st ? '' : ' none'}">${'★'.repeat(st)}${'☆'.repeat(3 - st)}</span>${b ? ` · best wave ${b}` : ''}`;
     }
   }
 
@@ -190,15 +194,27 @@ export class Menus {
       b.className = 'diff-btn';
       b.textContent = d.name.toUpperCase();
       b.dataset.id = id;
-      b.addEventListener('click', () => { this.difficulty = id; this.refreshDifficulty(); this.game.net.setLobbyMission(this.selectedMap, this.difficulty); });
+      b.addEventListener('click', () => { this.difficulty = id; this.refreshDifficulty(); this.refreshMapCards(); this.game.net.setLobbyMission(this.selectedMap, this.difficulty, this.endless); });
       wrap.appendChild(b);
+    }
+    const modes = $('mode-buttons');
+    modes.innerHTML = '';
+    for (const [id, label] of [['mission', 'MISSION'], ['endless', 'ENDLESS']]) {
+      const b = document.createElement('button');
+      b.className = 'diff-btn';
+      b.textContent = label;
+      b.dataset.id = id;
+      b.addEventListener('click', () => { this.endless = id === 'endless'; this.refreshDifficulty(); this.game.net.setLobbyMission(this.selectedMap, this.difficulty, this.endless); });
+      modes.appendChild(b);
     }
     this.refreshDifficulty();
   }
 
   refreshDifficulty() {
     for (const b of $('diff-buttons').children) b.classList.toggle('sel', b.dataset.id === this.difficulty);
-    $('diff-desc').textContent = DIFFICULTIES[this.difficulty].desc;
+    for (const b of $('mode-buttons').children) b.classList.toggle('sel', (b.dataset.id === 'endless') === this.endless);
+    const map = MAPS.find((m) => m.id === this.selectedMap) || MAPS[0];
+    $('diff-desc').textContent = `${DIFFICULTIES[this.difficulty].desc} ${this.endless ? 'Endless: the waves never stop. How far can you get?' : `Mission: survive ${map.waves || 20} waves to win. Stars for how much of the core is left.`}`;
   }
 
   // ------------------------------------------------------------ settings
@@ -284,12 +300,12 @@ export class Menus {
       body.innerHTML = `<div class="keys">
         <div><span class="k">${K('W', 'A', 'S', 'D')}</span>Move</div>
         <div><span class="k">${K('Shift')}</span>Sprint</div>
-        <div><span class="k">${K('Space')}</span>Jump</div>
+        <div><span class="k">${K('Space')}</span>Jump · hold in the air: jetpack</div>
         <div><span class="k">${K('LMB')}</span>Shoot / place building</div>
         <div><span class="k">${K('RMB')}</span>Aim down sights / cancel build</div>
         <div><span class="k">${K('R')}</span>Reload / rotate building</div>
         <div><span class="k">${K('1')}</span>Rifle</div>
-        <div><span class="k">${K('2')}–${K('9')}</span>Choose a building</div>
+        <div><span class="k">${K('2')}–${K('0')}</span>Choose a trap / building</div>
         <div><span class="k">${K('Wheel')}</span>Cycle buildings</div>
         <div><span class="k">${K('E')}</span>Upgrade aimed building</div>
         <div><span class="k">${K('F')}</span>Repair aimed building</div>
@@ -300,11 +316,14 @@ export class Menus {
         <div><span class="k">${K('Esc')}</span>Pause</div>
       </div>
       <div class="tips">
-        <b>Goal:</b> keep the core in the middle of your base alive. Aliens crawl out of the hives when night falls.<br>
-        <b>Endless:</b> the waves never stop, they just get harder. A new kind of alien shows up every wave until you have met them all, in a different order every game. Every 5th wave brings a boss. How far can you get?<br>
+        <b>Goal:</b> keep the core alive. Aliens crawl out of the hives when night falls.<br>
+        <b>Missions:</b> survive all waves (the last one is a double boss wave) to win. You earn up to 3 stars for how much of the core is left. <b>Endless</b> mode never stops, it just gets harder: how far can you get? A new kind of alien shows up every wave until you have met them all, in a different order every game, and every 5th wave brings a boss.<br>
+        <b>Co-op:</b> with more players the swarm gets bigger and tougher.<br>
+        <b>Jetpack:</b> hold <kbd>Space</kbd> in the air to hover for a few seconds, for example over a chasm. It refuels on the ground.<br>
         <b>Crystals</b> come from kills and from clearing waves. Spend them on buildings, building upgrades and the armory.<br>
         <b>Red arrows</b> on the ground show where the next wave will walk. Build your traps on that path.<br>
-        <b>Traps:</b> <b>Spikes</b> stab everything standing on them. <b>Goo</b> slows aliens and covers them in fuel. A <b>Flame Vent</b> sets goo-covered aliens on fire for a big <b>IGNITE</b> combo. A <b>Launch Pad</b> throws aliens in the arrow's direction, straight into a chasm if you aim it right (they die instantly). A <b>Laser Fence</b> mounts on a wall and shoots across the corridor.<br>
+        <b>Several routes:</b> the swarm splits up. The dimmer orange arrows show the route some of them take. Block a route with Barricades to force everyone through your kill zone.<br>
+        <b>Traps:</b> <b>Spikes</b> stab everything standing on them. <b>Goo</b> slows aliens and covers them in fuel. A <b>Flame Vent</b> sets goo-covered aliens on fire for a big <b>IGNITE</b> combo. A <b>Launch Pad</b> throws aliens in the arrow's direction, straight into a chasm if you aim it right (they die instantly); a thrown alien can't be thrown again for a few seconds. A <b>Laser Fence</b> mounts on a wall (aim at the wall) and shoots across the corridor.<br>
         <b>Power:</b> some traps and turrets need ⚡ power. The core gives 15; build <b>Generators</b> (key 0) for more, and protect them.<br>
         <b>Barricades</b> are cheap and need no power. They block your bullets and must be repaired with crystals. Your suit has an energy shield (blue bar) that recharges when you avoid hits for a few seconds.<br>
         <b>Rotate</b> buildings in 45° steps: <kbd>R</kbd> while placing, <kbd>T</kbd> on a placed one. Launch Pads throw aliens in the direction their arrow points.<br>
@@ -429,7 +448,7 @@ export class Menus {
       $('lobby-info').innerHTML = `Share the room code with your friends. They choose <b>CO-OP → JOIN</b> and type it in.<br>When everybody is here, pick a mission and press <b>DEPLOY</b>.`;
       $('lobby-start').classList.remove('hidden');
     } else {
-      $('lobby-info').innerHTML = `Waiting for <b>${escapeHtml(net.nameOf(0))}</b> to start the mission…` + (map ? `<br>Mission: <b>${map.name}</b>${diff ? ' · ' + diff.name : ''}` : '');
+      $('lobby-info').innerHTML = `Waiting for <b>${escapeHtml(net.nameOf(0))}</b> to start the mission…` + (map ? `<br>Mission: <b>${map.name}</b>${diff ? ' · ' + diff.name : ''} · ${net.lobbyEndless ? 'Endless' : `${map.waves || 20} waves`}` : '');
       $('lobby-start').classList.add('hidden');
     }
   }
@@ -458,12 +477,18 @@ export class Menus {
     this.noticeT = setTimeout(() => el.classList.add('hidden'), 5000);
   }
 
-  showGameOver(stats, newRecord) {
+  showGameOver(stats, newRecord, res = {}) {
     $('record-badge').classList.toggle('hidden', !newRecord);
+    $('record-badge').textContent = res.win ? 'NEW BEST RATING!' : 'NEW RECORD!';
+    $('over-kicker').textContent = res.win ? 'MISSION COMPLETE' : 'THE CORE HAS FALLEN';
+    $('over-kicker').classList.toggle('danger', !res.win);
+    $('over-title').textContent = res.win ? 'VICTORY' : 'DEFEAT';
+    $('over-stars').classList.toggle('hidden', !res.win);
+    if (res.win) $('over-stars').innerHTML = [1, 2, 3].map((k) => `<i class="${k <= res.stars ? 'on' : ''}" style="--d:${k * 0.25}s">★</i>`).join('') + `<div class="os-sub">Core at ${res.core}% · 3 stars need 90% left, 2 stars 50%</div>`;
     const mins = Math.floor(stats.time / 60);
     const secs = Math.floor(stats.time % 60);
     const items = [
-      ['Waves survived', stats.waves],
+      [res.win ? 'Waves' : 'Waves survived', stats.waves],
       ['Aliens killed', stats.kills],
       ['Damage dealt', Math.round(stats.damage).toLocaleString('en-US')],
       ['Buildings built', stats.built],

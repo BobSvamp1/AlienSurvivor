@@ -16,7 +16,7 @@ export class Upgrades {
 
   cost(id) {
     const u = this.def(id);
-    if (u.repeat) return u.base;
+    if (u.repeat) return Math.round((u.base * (1 + 0.35 * this.level(id))) / 5) * 5;
     return Math.round((u.base * Math.pow(1.55, this.level(id))) / 5) * 5;
   }
 

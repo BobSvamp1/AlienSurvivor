@@ -7,14 +7,18 @@ export const MAPS = [
     id: 'outpost',
     name: 'Kepler Outpost',
     subtitle: 'The Stranded Crew',
-    description: 'Your wrecked outpost is cut into a rock mesa. Narrow corridors and bottomless chasms lead from three hives to the core. Block routes, fling aliens into the abyss and hold the overlook.',
+    description: 'Your wrecked outpost is cut deep into the rock. Three hive caves, winding corridors and bottomless chasms surround the cross-shaped core hall. Four gates lead in: block some, trap the others.',
     difficulty: 2,
-    halfX: 52,
-    halfZ: 60,
-    core: [0, 37],
-    spawn: [0, 27],
-    hives: [[-40, -50], [0, -52], [40, -50]],
+    halfX: 56,
+    halfZ: 62,
+    core: [0, 20],
+    spawn: [0, 11],
+    hives: [[-27, -47], [27, -48], [-43, 33]],
     enemyBias: { leaper: 1.2, brute: 1.2, serpent: 1.2 },
+    tightClutter: true,
+    waves: 15,
+    dressing: { light: '#ffe2b0', gateLight: '#ffb070' },
+    gates: [[0, 6, 'z', 4], [0, 34, 'z', 4], [-16, 20, 'x', 4], [16, 20, 'x', 4]],
     theme: {
       grade: { contrast: 1.16, saturation: 0.95, shadowTint: '#3a2a48', highlightTint: '#ffc090', split: 0.22, vignette: 0.5 },
       atmosphere: { mist: 0.14 },
@@ -35,33 +39,105 @@ export const MAPS = [
       cliffHeight: 1.6,
     },
     elevation(e) {
-      e.base(7); // solid rock mesa; everything below is cut into it
-      // overlook ledge beside the main corridor, reached by a ramp from the core
-      e.rect(-14, 4, -4, 22, 3, { rough: 0.3 });
-      e.ramp(-10, 31, -10, 20, 4, 0, 3);
-      // chasms next to the corridors: fling aliens in with a Launch Pad
-      e.rect(4, 2, 14, 14, -7, { rough: 0.4 });
-      e.rect(-14, -44, -4, -32, -7, { rough: 0.4 });
-      e.rect(-36, -36, -27, -24, -7, { rough: 0.4 });
-      e.rect(27, -36, 36, -24, -7, { rough: 0.4 });
-      const C = (x1, z1, x2, z2, w = 8) => e.ramp(x1, z1, x2, z2, w, 0, 0);
-      // hive tunnels
-      C(-40, -54, -40, -10); C(40, -54, 40, -10); C(0, -56, 0, -10);
-      // the crossroads and the cross corridor
-      C(-44, -10, 44, -10);
-      e.rect(-8, -16, 8, -4, 0, { rough: 0.2 });
-      // main corridor to the core
-      C(0, -10, 0, 30);
-      // long bypasses along the outer walls
-      C(-40, -10, -40, 34); C(-44, 34, -6, 34);
-      C(40, -10, 40, 34); C(44, 34, 6, 34);
-      // chambers
-      e.circle(0, 37, 12, 0, { rough: 0.6 });
-      for (const [x, z] of [[-40, -50], [0, -52], [40, -50]]) e.circle(x, z, 8, 0, { rough: 0.8 });
+      e.base(7); // solid rock; every room and corridor is cut into it
+      // --- hive caves (rough, natural walls)
+      e.poly([[-44, -56], [-30, -60], [-16, -57], [-13, -46], [-15, -36], [-17, -29], [-28, -28], [-38, -31], [-43, -40]], 0, { rough: 1.4 });
+      e.poly([[13, -58], [26, -61], [40, -58], [43, -47], [40, -36], [32, -29], [18, -29], [14, -38]], 0, { rough: 1.4 });
+      e.poly([[-54, 22], [-44, 18], [-33, 21], [-30, 30], [-33, 42], [-40, 47], [-50, 45], [-55, 34]], 0, { rough: 1.4 });
+      // --- chasms (Launch Pads can throw aliens in)
+      e.rect(-8, -38, 8, -30, -7, { rough: 0.3 }); // north of the connector
+      e.rect(-12, 42, 4, 48, -7, { rough: 0.3 }); // between the south corridors
+      e.rect(24, 8, 32, 22, -7, { rough: 0.3 }); // east of the ring
+      e.rect(-32, -16, -24, -4, -7, { rough: 0.3 }); // west of the ring
+      // --- corridors (straight, so wall traps fit along them)
+      const C = (x1, z1, x2, z2, w = 6) => e.ramp(x1, z1, x2, z2, w, 0, 0);
+      C(-24, -27, 24, -27); // connector between the two northern caves
+      C(-21, -33, -21, 42); // west corridor + west side of the ring
+      C(21, -33, 21, 42); // east corridor + east side of the ring
+      C(-24, 1, 24, 1); // north side of the ring
+      C(-24, 39, 24, 39); // south side of the ring
+      C(-36, 28, -18, 28, 4); // narrow pass from the south-west cave
+      C(-44, 51, 14, 51); // long south corridor
+      C(11, 54, 11, 36); // up into the ring
+      C(-43, 40, -43, 54); // from the south-west cave down to it
+      // --- the cross-shaped core hall and its four gates
+      e.rect(-6, 8, 6, 32, 0, { rough: 0 });
+      e.rect(-14, 14, 14, 26, 0, { rough: 0 });
+      e.rect(-2, 3, 2, 9, 0, { rough: 0 }); // north gate
+      e.rect(-2, 31, 2, 37, 0, { rough: 0 }); // south gate
+      e.rect(-19, 18, -13, 22, 0, { rough: 0 }); // west gate
+      e.rect(13, 18, 19, 22, 0, { rough: 0 }); // east gate
     },
     layout(b, rng) {
-      // a little rubble in the hive chambers
-      for (const [x, z] of [[-46, -46], [6, -58], [46, -46]]) b.rock(x + (rng() - 0.5) * 2, z + (rng() - 0.5) * 2, 1.1 + rng() * 0.5);
+      // pillars in the core hall and in the caves
+      for (const [x, z] of [[-9, 15], [9, 15], [-9, 25], [9, 25]]) b.rock(x, z, 0.6);
+      for (const [x, z, r] of [[-35, -40, 1.8], [-21, -52, 1.4], [33, -41, 1.8], [21, -54, 1.4], [-48, 28, 1.6]]) b.rock(x + (rng() - 0.5), z + (rng() - 0.5), r);
+    },
+  },
+  {
+    id: 'rift',
+    name: "Hadley's Rift",
+    subtitle: 'Bridges over the Abyss',
+    description: 'A research station on the edge of a bottomless rift. Three narrow bridges lead straight to the core, long tunnels go around. Throw them off the bridges!',
+    difficulty: 2,
+    waves: 15,
+    halfX: 52,
+    halfZ: 60,
+    core: [0, 37],
+    spawn: [0, 28],
+    hives: [[0, -49], [-40, -24], [40, -24]],
+    enemyBias: { swarmling: 1.3, serpent: 1.3, ravager: 1.2, wasp: 1.2 },
+    tightClutter: true,
+    dressing: { light: '#d8f0ff', gateLight: '#7ad0ff' },
+    gates: [[-8, 25, 'z', 4], [8, 25, 'z', 4]],
+    theme: {
+      grade: { contrast: 1.12, saturation: 0.85, shadowTint: '#1c3a5a', highlightTint: '#eaf4ff', split: 0.18, vignette: 0.48 },
+      atmosphere: { mist: 0.22, mistCount: 44 },
+      materials: { ground: 'ground_frost', groundTint: '#e6eef6', cliffTint: '#a9bdd2', rockTop: 'ground_frost', rockSide: 'rock', rockTint: '#93a8bd', rockTopTint: '#ffffff' },
+      day: { top: '#2f5f9e', horizon: '#bcd8f2', bottom: '#8aa8c4', sun: '#f2f8ff', sunI: 2.6, hemi: 0.66, fog: '#a8c4dc' },
+      night: { top: '#040a1c', horizon: '#1c3c6a', bottom: '#0c1a33', sun: '#a8ccff', sunI: 1.6, hemi: 0.82, fog: '#122744' },
+      fogNear: 35, fogFar: 170,
+      ground: ['#c9d6e2', '#a8bacb', '#e0e8f0'],
+      cliff: '#6f88a3',
+      rock: '#9fb8d0',
+      obstacleStyle: 'ice',
+      prop: 'icecrystal',
+      propColor: '#5ad8ff',
+      particles: 'snow',
+      planet: { color: '#c9d8ff', ring: true, pos: [-220, 150, -260], size: 52 },
+      sunDir: [-0.35, 0.55, -0.6],
+      exposure: 0.95,
+      cliffHeight: 1.6,
+    },
+    elevation(e) {
+      e.base(7);
+      // the rift: a bottomless chasm across the whole station
+      e.rect(-34, -9, 34, 15, -9, { rough: 1.2 });
+      // hive caves
+      e.poly([[-12, -58], [0, -60], [12, -57], [14, -46], [8, -38], [-8, -38], [-14, -46]], 0, { rough: 1.3 });
+      e.poly([[-50, -32], [-40, -36], [-30, -32], [-28, -20], [-34, -13], [-46, -14], [-51, -22]], 0, { rough: 1.3 });
+      e.poly([[50, -32], [40, -36], [30, -32], [28, -20], [34, -13], [46, -14], [51, -22]], 0, { rough: 1.3 });
+      const C = (x1, z1, x2, z2, w = 6) => e.ramp(x1, z1, x2, z2, w, 0, 0);
+      // north landing above the rift, with tunnels from the three caves
+      e.rect(-24, -16, 24, -9, 0, { rough: 0.3 });
+      C(0, -40, 0, -14);
+      C(-37, -13, -18, -13, 6);
+      C(37, -13, 18, -13, 6);
+      // three bridges over the abyss
+      C(-14, -12, -14, 18, 4);
+      C(0, -12, 0, 18, 4);
+      C(14, -12, 14, 18, 4);
+      // south landing and two gates into the core yard
+      e.rect(-24, 15, 24, 22, 0, { rough: 0.3 });
+      e.circle(0, 37, 11, 0, { rough: 0.5 });
+      e.rect(-10, 21, -6, 29, 0, { rough: 0 });
+      e.rect(6, 21, 10, 29, 0, { rough: 0 });
+      // long tunnels around the rift (the slow way)
+      C(-43, -14, -43, 50); C(-43, 47, -3, 47, 6);
+      C(43, -14, 43, 50); C(43, 47, 3, 47, 6);
+    },
+    layout(b, rng) {
+      for (const [x, z, r] of [[-5, -50, 1.4], [6, -54, 1.2], [-44, -27, 1.4], [44, -27, 1.4], [-43, 22, 0.6], [43, 22, 0.6]]) b.rock(x + (rng() - 0.5) * 0.5, z + (rng() - 0.5) * 0.5, r);
     },
   },
   {
@@ -70,6 +146,7 @@ export const MAPS = [
     subtitle: 'Wreck of the Odyssey',
     description: 'Open sand flats around the crashed colony ship. Four hives, lots of room to build. A good first stand.',
     difficulty: 1,
+    waves: 15,
     halfX: 54,
     halfZ: 54,
     core: [0, 0],
@@ -117,6 +194,7 @@ export const MAPS = [
     subtitle: 'The Serpent Pass',
     description: 'A long, narrow gorge. The swarm must snake through rock walls to reach your core. Perfect for choke points.',
     difficulty: 2,
+    waves: 20,
     halfX: 28,
     halfZ: 62,
     core: [0, 48],
@@ -159,6 +237,7 @@ export const MAPS = [
     subtitle: 'Outpost Glacier-7',
     description: 'A ring of ice spires guards the core, with four gaps the swarm will pour through. Hives wake in every corner.',
     difficulty: 2,
+    waves: 20,
     halfX: 56,
     halfZ: 56,
     core: [0, 0],
@@ -204,6 +283,7 @@ export const MAPS = [
     subtitle: 'Spore Fields of Kepler-b',
     description: 'Acid pools, giant fungus and thick fog. Five hives, poor visibility and acid that burns anyone who wades in.',
     difficulty: 3,
+    waves: 20,
     halfX: 52,
     halfZ: 52,
     core: [0, 0],
@@ -243,6 +323,7 @@ export const MAPS = [
     subtitle: 'Deep Under Tau-4',
     description: 'A huge cave lit only by shafts of sunlight and the core. Stone pillars split the hall and four tunnels pour the swarm in from the dark.',
     difficulty: 3,
+    waves: 20,
     halfX: 50,
     halfZ: 50,
     core: [0, 0],
@@ -295,6 +376,7 @@ export const MAPS = [
     subtitle: 'The Steps of Veyra',
     description: 'Your core sits in a sunken basin. The hives nest on high shelves and the swarm must wind down the terraces to four ramps. Hold the high ground.',
     difficulty: 2,
+    waves: 20,
     halfX: 60,
     halfZ: 60,
     core: [0, 0],
@@ -360,6 +442,7 @@ export const MAPS = [
     subtitle: 'Last Bastion of Ashfall',
     description: 'The core stands on a fortified plateau with three ramps. Below, broken walls split the ash plains into lanes. The swarm must climb to reach you.',
     difficulty: 3,
+    waves: 25,
     halfX: 58,
     halfZ: 58,
     core: [0, 0],

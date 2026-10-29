@@ -48,6 +48,7 @@
         <div class="hp-label"><span id="ico-hp"></span><b id="hp-text">100</b><i id="hp-max">/ 100</i></div>
         <div class="bar hp-bar"><div id="hp-fill"></div></div>
         <div class="bar sh-bar"><div id="sh-fill"></div><span id="sh-text">SHIELD 50</span></div>
+        <div class="bar jet-bar" id="jet-bar"><div id="jet-fill"></div><span>JETPACK</span></div>
       </div>
 
       <div id="ammo-box">
@@ -148,6 +149,8 @@
         <div class="diff">
           <div class="diff-label">DIFFICULTY</div>
           <div id="diff-buttons"></div>
+          <div class="diff-label">MODE</div>
+          <div id="mode-buttons"></div>
           <div id="diff-desc"></div>
         </div>
         <div class="deploy-col">
@@ -202,8 +205,9 @@
 
     <section id="screen-over" class="screen hidden">
       <div class="center-col">
-        <div class="kicker danger">THE CORE HAS FALLEN</div>
-        <h2 class="big-title">DEFEAT</h2>
+        <div class="kicker danger" id="over-kicker">THE CORE HAS FALLEN</div>
+        <h2 class="big-title" id="over-title">DEFEAT</h2>
+        <div id="over-stars" class="hidden"></div>
         <div id="record-badge" class="hidden">NEW RECORD!</div>
         <div id="over-stats"></div>
         <div class="row-btns">

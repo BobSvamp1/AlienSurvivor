@@ -22,6 +22,7 @@ const P = {
   armor: '<path d="M12 2l8 3v6c0 5-3.5 9-8 11-4.5-2-8-6-8-11V5z"/>',
   regen: '<path d="M12 21s-7-4.5-7-10a4 4 0 0 1 7-2.6A4 4 0 0 1 19 10c0 5.5-7 10-7 10z"/><path d="M12 9v6M9 12h6"/>',
   speed: '<path d="M4 17h4l3-8 3 5h6"/><path d="M15 5l3 3-3 3"/>',
+  jet: '<rect x="7" y="3" width="10" height="11" rx="2"/><path d="M9 14l-1 3M15 14l1 3"/><path d="M8 19c0 1 .5 2 0 3M16 19c0 1-.5 2 0 3"/>',
   turret: '<circle cx="10" cy="14" r="5"/><path d="M13 11l8-5M5 21h10"/>',
   wall: '<rect x="2" y="6" width="20" height="12"/><path d="M2 12h20M7 6v6M12 12v6M17 6v6"/>',
   discount: '<path d="M4 20L20 4"/><circle cx="7" cy="7" r="2.5"/><circle cx="17" cy="17" r="2.5"/>',

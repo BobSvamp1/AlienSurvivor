@@ -27,7 +27,8 @@ export function planClutter(world) {
     const k = nav.idx(i, j);
     if (nav.blocked[k] || nav.pool[k] || used.has(k)) return false;
     const x = nav.cx(i), z = nav.cz(j);
-    if (world.elev.span(x, z, 1.5) > 0.25) return false; // only on level ground
+    if (world.elev.span(x, z, map.tightClutter ? 3.6 : 1.5) > 0.25) return false; // only on level ground (and not in narrow corridors)
+    if (map.tightClutter && Math.abs(world.elev.at(x, z) - world.elev.at(cx, cz)) > 0.3) return false; // not on top of the rock walls
     if (Math.hypot(x - cx, z - cz) < 8.5) return false;
     if (Math.hypot(x - map.spawn[0], z - map.spawn[1]) < 4) return false;
     for (const [hx, hz] of map.hives) if (Math.hypot(x - hx, z - hz) < 10) return false;

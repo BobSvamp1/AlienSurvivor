@@ -79,11 +79,11 @@ export const BUILDINGS = {
   // ---------------- traps (Orcs Must Die style) ----------------
   spikes: {
     name: 'Plasma Spikes', short: 'Spikes', cost: 60, solid: false, floor: true, rotatable: false,
-    desc: 'Floor plate that stabs everything walking over it. No power needed. Great after a Goo Pool or at the end of a Launcher throw.',
+    desc: 'Floor plate that stabs everything walking over it. Great after a Goo Pool or at the end of a Launcher throw.',
     levels: [
-      { dmg: 40, rate: 0.9 },
-      { dmg: 65, rate: 1.1, cost: 60, note: '+dmg, faster' },
-      { dmg: 95, rate: 1.35, cost: 110, note: 'Barbed: even more damage' },
+      { dmg: 40, rate: 0.9, power: 1 },
+      { dmg: 65, rate: 1.1, power: 1, cost: 60, note: '+dmg, faster' },
+      { dmg: 95, rate: 1.35, power: 1, cost: 110, note: 'Barbed: even more damage' },
     ],
   },
   goo: {

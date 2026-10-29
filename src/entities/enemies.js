@@ -108,6 +108,14 @@ export class EnemyManager {
       : (def.flying ? 0.9 : def.rig.bodyH * def.rig.legLen + def.rig.thorax[1] * 2.2) * def.rig.scale + 0.5;
 
     e.nid = opts.nid || (this.nidSeq = (this.nidSeq || 0) + 1);
+    // some aliens take the second route, so the swarm splits up over several corridors
+    e.route = false;
+    if (fromHive && !opts.mirror && !def.flying && !def.boss) {
+      const nav = this.game.world.nav;
+      let hi = -1, hd = Infinity;
+      nav.hives.forEach(([hx, hz], i) => { const d = Math.hypot(hx - x, hz - z); if (d < hd) { hd = d; hi = i; } });
+      if (hi >= 0 && nav.routeOk[hi] && Math.random() < 0.42) e.route = true;
+    }
     if (def.burrows && !opts.mirror) this.startBurrow(e);
 
     this.list.push(e);
@@ -159,7 +167,7 @@ export class EnemyManager {
     e.deadT = 0;
     e.rig.die(Math.random() < 0.5 ? -1 : 1);
     e.bar.visible = false;
-    game.addCredits(e.def.reward);
+    game.addCredits(e.def.reward * 0.75);
     game.stats.kills++;
     const p = _v.set(e.pos.x, e.pos.y + e.rig.baseH, e.pos.z);
     game.fx.burst(p, e.def.colors.blood, e.def.boss ? 70 : 18, 7, 0.14);
@@ -276,6 +284,7 @@ export class EnemyManager {
 
       // status effects
       e.slow = Math.max(0, e.slow - dt);
+      if (e.flungT > 0) e.flungT -= dt; // just thrown: can't be thrown again right away
       if (e.slow <= 0) e.slowF = 1;
       e.shock = Math.max(0, e.shock - dt);
       if (e.oiled > 0) e.oiled -= dt;
@@ -351,7 +360,7 @@ export class EnemyManager {
               if (e.attackCd <= 0) this.melee(e, 'core');
               speed = 0;
             } else {
-              const ok = nav.flowDir(e.pos.x, e.pos.z, _dir, e.pos.y);
+              const ok = nav.flowDir(e.pos.x, e.pos.z, _dir, e.pos.y, e.route);
               if (ok === true) {
                 desiredX = _dir.x; desiredZ = _dir.z;
                 // building in the next cell? attack it when touching
@@ -500,14 +509,19 @@ export class EnemyManager {
     const game = this.game;
     const nav = game.world.nav;
     const c = game.core.pos;
-    // pick a free spot inside the base, 5-11 m from the core
+    // surface somewhere random along the swarm's routes, a fair walk from the core
+    // (path distance 12-30 cells), so it is a surprise but not an instant hit on the core
     let tx = c.x, tz = c.z + 7;
-    for (let k = 0; k < 30; k++) {
-      const a = Math.random() * Math.PI * 2;
-      const d = 5 + Math.random() * 6;
-      const x = c.x + Math.cos(a) * d, z = c.z + Math.sin(a) * d;
-      const i = nav.ci(x), j = nav.cj(z);
-      if (nav.inside(i, j) && !nav.solidAt(i, j)) { tx = x; tz = z; break; }
+    const cand = [];
+    for (let k = 0; k < nav.dist.length; k++) {
+      const d = nav.dist[k];
+      if (d < 12 || d > 30 || nav.blocked[k] || nav.struct[k] || nav.pool[k]) continue;
+      cand.push(k);
+    }
+    if (cand.length) {
+      const k = cand[Math.floor(Math.random() * cand.length)];
+      tx = nav.cx(k % nav.cols) + (Math.random() - 0.5) * 0.8;
+      tz = nav.cz((k / nav.cols) | 0) + (Math.random() - 0.5) * 0.8;
     }
     e.burrow = { tx, tz, trail: 0 };
     e.hidden = true;
@@ -715,7 +729,7 @@ export class EnemyManager {
 
   // Gravity Launcher: throw an alien up to `dist` metres along (dx, dz)
   fling(e, dx, dz, dist) {
-    if (e.dead || e.leap || e.hidden || e.def.flying) return false;
+    if (e.dead || e.leap || e.hidden || e.def.flying || e.flungT > 0) return false;
     const nav = this.game.world.nav;
     let ex = e.pos.x, ez = e.pos.z, pit = false;
     for (let t = 0.5; t <= dist; t += 0.5) {
@@ -746,7 +760,6 @@ export class EnemyManager {
     if (e.dead) return;
     e.hp = 0;
     this.kill(e, { fell: true });
-    game.addCredits(Math.ceil(e.def.reward * 0.5)); // style bonus
     game.fx.label(e.pos.x, e.pos.y + 1.5, e.pos.z, 'INTO THE ABYSS!', '#8aff5a');
     game.net.event({ k: 'label', x: e.pos.x, y: e.pos.y + 1.5, z: e.pos.z, t: 'INTO THE ABYSS!', c: '#8aff5a' });
   }
@@ -763,6 +776,7 @@ export class EnemyManager {
       e.leap = null;
       e.vel.set(0, 0, 0);
       if (L.pit) { this.fallDeath(e); return; }
+      e.flungT = 3.5;
       e.pos.y = groundAt(e.pos.x, e.pos.z);
       e.rig.plantFeet();
       this.game.fx.dust(e.pos.x, e.pos.z, 1.0);

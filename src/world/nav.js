@@ -61,6 +61,12 @@ export class NavGrid {
     this.pool = new Uint8Array(n);
     this.struct = new Array(n).fill(null);
     this.dist = new Float32Array(n).fill(Infinity);
+    // a second flow field that avoids the main routes: some aliens take it, so the
+    // swarm spreads over several corridors when the map has them
+    this.dist2 = new Float32Array(n).fill(Infinity);
+    this.pen = new Float32Array(n);
+    this.hives = map.hives || [];
+    this.routeOk = this.hives.map(() => false);
     this.dirty = true;
   }
 
@@ -126,7 +132,67 @@ export class NavGrid {
   }
 
   computeFlow(coreX, coreZ, coreRadius) {
-    const dist = this.dist;
+    this.dijkstra(this.dist, coreX, coreZ, coreRadius, null);
+    this.computeAlt(coreX, coreZ, coreRadius);
+    this.dirty = false;
+  }
+
+  // follow a field from (x, z) to the core: list of cells and walked length
+  traceCells(field, x, z, max = 800) {
+    const cells = [];
+    let i = this.ci(x), j = this.cj(z);
+    if (!this.inside(i, j)) return { cells, len: Infinity };
+    let k = this.idx(i, j), len = 0;
+    if (!isFinite(field[k])) return { cells, len: Infinity };
+    for (let s = 0; s < max; s++) {
+      cells.push(k);
+      if (field[k] === 0) return { cells, len };
+      let best = field[k], bk = -1;
+      for (const [di, dj] of N8) {
+        const ni = i + di, nj = j + dj;
+        if (!this.inside(ni, nj)) continue;
+        const nk = this.idx(ni, nj);
+        if (this.blocked[nk]) continue;
+        if (Math.abs(this.h[nk] - this.h[k]) > STEP) continue;
+        if (di !== 0 && dj !== 0 && (this.solidAt(i + di, j) || this.solidAt(i, j + dj))) continue;
+        if (field[nk] < best) { best = field[nk]; bk = nk; }
+      }
+      if (bk < 0) return { cells, len: Infinity };
+      const ni = bk % this.cols, nj = (bk / this.cols) | 0;
+      len += Math.hypot(ni - i, nj - j) * CELL;
+      i = ni; j = nj; k = bk;
+    }
+    return { cells, len: Infinity };
+  }
+
+  computeAlt(coreX, coreZ, coreRadius) {
+    const pen = this.pen;
+    pen.fill(0);
+    const main = this.hives.map(([x, z]) => this.traceCells(this.dist, x, z));
+    const cols = this.cols;
+    for (const m of main) for (const k of m.cells) {
+      const i = k % cols, j = (k / cols) | 0;
+      if (this.dist[k] < 6) continue; // everyone meets at the core anyway
+      pen[k] = Math.max(pen[k], 4);
+      for (const [di, dj] of N8) {
+        if (!this.inside(i + di, j + dj)) continue;
+        const nk = this.idx(i + di, j + dj);
+        pen[nk] = Math.max(pen[nk], 2.5);
+      }
+    }
+    this.dijkstra(this.dist2, coreX, coreZ, coreRadius, pen);
+    // only use the other route when it is really different and not a huge detour
+    this.routeOk = this.hives.map(([x, z], h) => {
+      const a = this.traceCells(this.dist2, x, z);
+      const m = main[h];
+      if (!isFinite(a.len) || !isFinite(m.len) || m.len < 1) return false;
+      const set = new Set(m.cells);
+      const shared = a.cells.filter((k) => set.has(k)).length / Math.max(1, a.cells.length);
+      return shared < 0.6 && a.len <= m.len * 1.75;
+    });
+  }
+
+  dijkstra(dist, coreX, coreZ, coreRadius, pen) {
     dist.fill(Infinity);
     const heap = new MinHeap();
     const cols = this.cols;
@@ -151,14 +217,13 @@ export class NavGrid {
         if (Math.abs(this.h[nk] - this.h[k]) > STEP) continue; // too steep
         const diag = di !== 0 && dj !== 0;
         if (diag && (this.solidAt(i + di, j) || this.solidAt(i, j + dj))) continue;
-        const nd = base + this.enterCost(nk) * (diag ? SQRT2 : 1);
+        const nd = base + (this.enterCost(nk) + (pen ? pen[nk] : 0)) * (diag ? SQRT2 : 1);
         if (nd < dist[nk]) {
           dist[nk] = nd;
           heap.push(nk, nd);
         }
       }
     }
-    this.dirty = false;
   }
 
   distAt(x, z) {
@@ -168,10 +233,11 @@ export class NavGrid {
 
   // Direction (into out.x/out.z) towards the core along the flow field.
   // Returns false if the position has no path.
-  flowDir(x, z, out, y = null) {
+  flowDir(x, z, out, y = null, alt = false) {
     const i = this.ci(x), j = this.cj(z);
     if (!this.inside(i, j)) return false;
-    const here = this.dist[this.idx(i, j)];
+    const field = alt ? this.dist2 : this.dist;
+    const here = field[this.idx(i, j)];
     // standing height: only neighbours reachable from here count (no walking up cliffs)
     const yy = y === null ? this.h[this.idx(i, j)] : y;
     let best = here, bi = -1, bj = -1;
@@ -182,7 +248,7 @@ export class NavGrid {
       if (this.blocked[nk]) continue;
       if (this.h[nk] - yy > STEP + 0.3) continue;
       if (di !== 0 && dj !== 0 && (this.solidAt(i + di, j) || this.solidAt(i, j + dj))) continue;
-      const d = this.dist[nk];
+      const d = field[nk];
       if (d < best) { best = d; bi = ni; bj = nj; }
     }
     if (bi < 0) return here === 0 ? 'core' : false;

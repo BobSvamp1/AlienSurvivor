@@ -29,7 +29,7 @@ export const MAPS = [
       ground: ['#8c5a40', '#6e4630', '#a87050'],
       cliff: '#6a3a28',
       rock: '#7a4a34',
-      obstacleStyle: 'mesa',
+      obstacleStyle: 'rock',
       prop: 'crystal',
       propColor: '#3de0ff',
       particles: 'dust',
@@ -45,10 +45,10 @@ export const MAPS = [
       e.poly([[13, -58], [26, -61], [40, -58], [43, -47], [40, -36], [32, -29], [18, -29], [14, -38]], 0, { rough: 1.4 });
       e.poly([[-54, 22], [-44, 18], [-33, 21], [-30, 30], [-33, 42], [-40, 47], [-50, 45], [-55, 34]], 0, { rough: 1.4 });
       // --- chasms (Launch Pads can throw aliens in)
-      e.rect(-8, -38, 8, -30, -7, { rough: 0.3 }); // north of the connector
-      e.rect(-12, 42, 4, 48, -7, { rough: 0.3 }); // between the south corridors
-      e.rect(24, 8, 32, 22, -7, { rough: 0.3 }); // east of the ring
-      e.rect(-32, -16, -24, -4, -7, { rough: 0.3 }); // west of the ring
+      e.rect(-8, -38, 8, -30, -18, { rough: 0.3 }); // north of the connector
+      e.rect(-12, 42, 4, 48, -18, { rough: 0.3 }); // between the south corridors
+      e.rect(24, 8, 32, 22, -18, { rough: 0.3 }); // east of the ring
+      e.rect(-32, -16, -24, -4, -18, { rough: 0.3 }); // west of the ring
       // --- corridors (straight, so wall traps fit along them)
       const C = (x1, z1, x2, z2, w = 6) => e.ramp(x1, z1, x2, z2, w, 0, 0);
       C(-24, -27, 24, -27); // connector between the two northern caves
@@ -112,7 +112,7 @@ export const MAPS = [
     elevation(e) {
       e.base(7);
       // the rift: a bottomless chasm across the whole station
-      e.rect(-34, -9, 34, 15, -9, { rough: 1.2 });
+      e.rect(-34, -9, 34, 15, -22, { rough: 1.2 });
       // hive caves
       e.poly([[-12, -58], [0, -60], [12, -57], [14, -46], [8, -38], [-8, -38], [-14, -46]], 0, { rough: 1.3 });
       e.poly([[-50, -32], [-40, -36], [-30, -32], [-28, -20], [-34, -13], [-46, -14], [-51, -22]], 0, { rough: 1.3 });

@@ -1,6 +1,10 @@
 # Alien Survivor
 
-Co-op first-person base defense in the browser (1–4 players). Build defenses by day, survive alien swarms at night.
+Co-op first-person trap defense in the browser (1–4 players). You are a stranded crew on an alien moon: build traps in the corridors by day, survive the swarm at night.
+
+- **Missions:** survive all waves (the last one is a double boss wave) and earn up to 3 stars. **Endless** mode never stops.
+- **Traps:** Spikes, Goo, Flame Vents (Goo + fire = IGNITE combo), Launch Pads (throw aliens into chasms), Laser Fences on the walls, plus turrets and barricades.
+- **Jetpack:** hold Space in the air to hover.
 
 **Play:** https://bobsvamp1.github.io/aliensurvivor/
 

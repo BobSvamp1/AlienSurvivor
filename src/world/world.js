@@ -853,6 +853,7 @@ export class World {
       const [x, z] = sample(4);
       if (!ok(x, z)) continue;
       if (fbm(x * 0.08, z * 0.08, 13, 2) < 0.45) continue; // clumps
+      if (this.map.tightClutter && rng() < 0.6) continue;
       const h = 0.25 + rng() * 0.6;
       dummy.position.set(x, this.terrainHeight(x, z) + h / 2, z);
       dummy.rotation.set((rng() - 0.5) * 0.5, rng() * 3, (rng() - 0.5) * 0.5);
@@ -873,7 +874,11 @@ export class World {
     for (let n = 0; n < count * 3 && glows.length < count * 3; n++) {
       // prefer edges and near obstacles
       const [x, z] = rng() < 0.5 ? sample(10) : sample(-4);
-      if (!ok(x, z)) continue;
+      if (this.map.tightClutter) {
+        // corridor maps: crystals grow on the rock above, not in the corridors you build in
+        const i = nav.ci(x), j = nav.cj(z);
+        if (nav.inside(i, j) && nav.blocked[nav.idx(i, j)] !== VOID) continue;
+      } else if (!ok(x, z)) continue;
       const y = this.terrainHeight(x, z);
       if (t.prop === 'crystal' || t.prop === 'icecrystal') {
         const k = 2 + ((rng() * 3) | 0);
@@ -951,7 +956,8 @@ export class World {
       list.push(dummy.matrix.clone());
     }
     if (!list.length) return;
-    const mat = new THREE.MeshStandardMaterial({ color: '#2a6a10', emissive: '#6aff2a', emissiveIntensity: 1.1, roughness: 0.1 });
+    // deep down: a faint toxic glow far below, so the chasm reads as bottomless
+    const mat = new THREE.MeshStandardMaterial({ color: '#06120a', emissive: '#3aff6a', emissiveIntensity: 0.35, roughness: 0.6, fog: false });
     const m = this.instanced(new THREE.PlaneGeometry(1, 1), mat, list, { shadow: false });
     m.receiveShadow = false;
     // a faint glow rising from the chasm
@@ -970,9 +976,8 @@ export class World {
   buildDressing() {
     const nav = this.nav;
     const D = this.map.dressing;
-    const rng = mulberry32(991);
     const dummy = new THREE.Object3D();
-    const lamps = [], lampGlow = [], pipes = [], brackets = [], stripes = [], vents = [];
+    const stripes = [];
     const at = (x, z) => this.elev.at(x, z);
     const N4 = [[1, 0], [-1, 0], [0, 1], [0, -1]];
     const put = (list, x, y, z, ry, sx = 1, sy = 1, sz = 1) => {
@@ -990,37 +995,12 @@ export class World {
         const ni = i + di, nj = j + dj;
         if (!nav.inside(ni, nj)) continue;
         const nb = nav.blocked[nav.idx(ni, nj)];
-        // straight rock wall right at the cell edge
-        if ((nb === CLIFF || nb === VOID) && at(x + di * 0.7, z + dj * 0.7) < h + 0.4 && at(x + di * 1.3, z + dj * 1.3) > h + 3) {
-          const ry = Math.atan2(di, dj); // local +Z points into the wall
-          const wx = x + di * 0.97, wz = z + dj * 0.97;
-          const tx = -dj, tz = di; // along the wall
-          // two pipes along every straight wall
-          put(pipes, wx - di * 0.1, h + 0.95, wz - dj * 0.1, ry + Math.PI / 2, 1, 1, 1);
-          put(pipes, wx - di * 0.12, h + 1.18, wz - dj * 0.12, ry + Math.PI / 2, 0.75, 1, 0.75);
-          if ((i + j) % 2 === 0) put(brackets, wx - di * 0.05, h + 1.06, wz - dj * 0.05, ry);
-          // a lamp on every third wall cell
-          if ((i * 3 + j * 5 + (di + 2) * 7 + (dj + 2) * 11) % 3 === 0) {
-            put(lamps, wx - di * 0.06, h + 2.7, wz - dj * 0.06, ry);
-            put(lampGlow, wx - di * 0.13, h + 2.62, wz - dj * 0.13, ry);
-          } else if (rng() < 0.18) {
-            put(vents, wx - di * 0.04, h + 0.35, wz - dj * 0.04, ry);
-          }
-          void tx; void tz;
-        }
         // hazard stripes where the floor ends at a chasm
         if (nb === PIT) put(stripes, x + di * 0.86, h + 0.025, z + dj * 0.86, Math.atan2(di, dj));
       }
     }
-    const metal = pbr('metal', { color: '#9aa4ae', metalness: 0.8 });
     const dark = pbr('gunmetal', { color: '#40454c' });
-    const pipeGeo = new THREE.CylinderGeometry(0.07, 0.07, 2.02, 10).rotateZ(Math.PI / 2);
-    this.instanced(pipeGeo, metal, pipes, { shadow: false });
-    this.instanced(new THREE.BoxGeometry(0.12, 0.42, 0.12), dark, brackets, { shadow: false });
-    this.instanced(new THREE.BoxGeometry(0.7, 0.22, 0.14), dark, lamps, { shadow: false });
     const glowMat = new THREE.MeshStandardMaterial({ color: '#ffffff', emissive: D.light || '#ffe2b0', emissiveIntensity: 2.6, toneMapped: false });
-    this.instanced(new THREE.BoxGeometry(0.56, 0.07, 0.02), glowMat, lampGlow, { shadow: false, receive: false });
-    this.instanced(new THREE.BoxGeometry(0.55, 0.32, 0.06), dark, vents, { shadow: false });
     // hazard stripes: yellow/black texture
     const c = document.createElement('canvas');
     c.width = 128; c.height = 16;

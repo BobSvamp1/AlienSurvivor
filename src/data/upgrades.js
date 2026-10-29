@@ -20,7 +20,7 @@ export const UPGRADES = [
   { id: 'jet', tab: 'survival', icon: 'jet', name: 'Jet Booster', desc: '+50% jetpack fuel', base: 100, max: 2 },
   { id: 'structHp', tab: 'defense', icon: 'wall', name: 'Composite Armor', desc: '+20% health for all buildings', base: 130, max: 3 },
   { id: 'buildCost', tab: 'defense', icon: 'discount', name: 'Fabricator', desc: '−10% building & upgrade cost', base: 180, max: 2 },
-  { id: 'repairAll', tab: 'defense', icon: 'repair', name: 'Repair Drones', desc: 'Repair every building to full health', base: 80, repeat: true },
+  { id: 'repairAll', tab: 'defense', icon: 'repair', name: 'Repair Drones', desc: 'Repair every building to full health (costs what repairing them one by one would, +15%)', base: 0, repeat: true },
   { id: 'reactor', tab: 'core', icon: 'power', name: 'Core Reactor', desc: '+5 power for your defenses', base: 150, max: 3 },
   { id: 'coreHp', tab: 'core', icon: 'core', name: 'Core Capacitors', desc: '+300 max core health', base: 150, max: 3 },
   { id: 'corePulse', tab: 'core', icon: 'pulse', name: 'Core Pulse', desc: 'The core blasts nearby aliens every few seconds', base: 220, max: 2 },

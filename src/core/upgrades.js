@@ -16,6 +16,12 @@ export class Upgrades {
 
   cost(id) {
     const u = this.def(id);
+    if (id === 'repairAll') {
+      // what fixing everything by hand would cost, plus 15% for the convenience
+      let sum = 0;
+      for (const st of this.game.build.structures) sum += this.game.build.repairCost(st);
+      return sum > 0 ? Math.max(5, Math.ceil((sum * 1.15) / 5) * 5) : 0;
+    }
     if (u.repeat) return Math.round((u.base * (1 + 0.35 * this.level(id))) / 5) * 5;
     return Math.round((u.base * Math.pow(1.55, this.level(id))) / 5) * 5;
   }

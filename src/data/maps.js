@@ -242,7 +242,7 @@ export const MAPS = [
   {
     id: 'outpost',
     name: 'Kepler Outpost',
-    showcase: { x: -1.6, z: 25.6, dir: 0 }, // the menu stage: in the south arm of the core hall, the core behind the squad
+    showcase: { x: -1.7, z: 26.3, dir: 0 }, // the menu stage: in the south arm of the core hall, the core behind the squad
     subtitle: 'The Stranded Crew',
     description: 'Your wrecked outpost is cut deep into the rock. Three hive caves, winding corridors and bottomless chasms surround the cross-shaped core hall. Four gates lead in: block some, trap the others.',
     difficulty: 2,

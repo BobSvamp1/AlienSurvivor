@@ -7,7 +7,7 @@ import { groundAt } from '../world/elevation.js';
 // world next to the core. On the main menu the chosen one stands in front of the
 // line-up; on the hero screen the camera moves in close and the hero slowly turns.
 
-const SLOTS = [[1.0, 0, 0.6], [2.45, 0, -0.35], [3.85, 0, -1.25], [2.25, 0, -2.3]]; // anchor space: x right, z towards the camera
+const SLOTS = [[1.0, 0, 0.6], [2.45, 0, -0.25], [3.85, 0, -0.95], [2.7, 0, -1.7]]; // anchor space: x right, z towards the camera
 
 export class Showcase {
   constructor(game) {
@@ -158,7 +158,7 @@ export class Showcase {
     const front = this.avatars[sel];
     const fp = front.root.position;
     if (this.mode === 'lineup') {
-      toWorld(-0.4, 1.35, 6.6, _c);
+      toWorld(-0.3, 1.35, 5.4, _c);
       toWorld(0.55, 1.6, -0.8, _l);
     } else {
       toWorld(SLOTS[0][0] - 1.0, 1.35, 3.0, _c);
@@ -172,7 +172,7 @@ export class Showcase {
     const cam = this.game.r.camera;
     cam.position.copy(this.camPos);
     cam.lookAt(this.camLook);
-    if (cam.fov !== 42) { cam.fov = 42; cam.updateProjectionMatrix(); }
+    if (cam.fov !== 48) { cam.fov = 48; cam.updateProjectionMatrix(); }
     // lights: warm key from the front-left, cool rim from behind
     toWorld(-2.5, 4.6, 5.5, this.key.position);
     toWorld(3.0, 2.6, -3.5, this.rim.position);

@@ -1314,7 +1314,9 @@ export class World {
       const a = (i / 9) * Math.PI * 2 + crng() * 0.4;
       const h = 1.0 + crng() * 1.7;
       const r = 0.2 + crng() * 0.22;
-      const tilt = 0.35 + crng() * 0.45;
+      // (leaning out only so far that the slowly turning cluster never cuts through
+      // the clamp arms around it)
+      const tilt = Math.min(0.35 + crng() * 0.45, Math.asin(Math.min(1, (1.25 - 0.55 - r) / h)));
       const c = add(crystalGeo(h, r), crystalMat, Math.cos(a) * 0.55, 0, Math.sin(a) * 0.55, false, cluster);
       c.rotation.set(Math.sin(a) * tilt, crng() * 3, -Math.cos(a) * tilt);
       c.updateMatrix();

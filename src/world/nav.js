@@ -128,11 +128,14 @@ export class NavGrid {
     let c = 1;
     if (this.pool[k]) c += 1.5;
     const s = this.struct[k];
-    if (s && s.def.solid) c += s.def.navCost || 10;
+    // the road is always left open, so the swarm walks the maze you build rather than
+    // chewing through it (unless it's stuck in a pocket)
+    if (s && s.def.solid) c += 60 + (s.def.navCost || 10);
     return c;
   }
 
   computeFlow(coreX, coreZ, coreRadius) {
+    this.core = [coreX, coreZ, coreRadius];
     this.dijkstra(this.dist, coreX, coreZ, coreRadius, null);
     this.computeAlt(coreX, coreZ, coreRadius);
     this.dirty = false;
@@ -225,6 +228,40 @@ export class NavGrid {
         }
       }
     }
+  }
+
+  // would every hive still have an open way to the core (walking, not chewing through
+  // anything) if cell `extra` were walled off too? Players may never seal the road.
+  pathOpenWithout(extra) {
+    if (!this.core) return true;
+    const [cx, cz, cr] = this.core;
+    const cols = this.cols, n = this.blocked.length;
+    const seen = this._seen && this._seen.length === n ? this._seen : (this._seen = new Uint8Array(n));
+    seen.fill(0);
+    const stack = [];
+    for (let j = 0; j < this.rows; j++) for (let i = 0; i < cols; i++) {
+      if (Math.hypot(this.cx(i) - cx, this.cz(j) - cz) <= cr + 2.2) { const k = this.idx(i, j); seen[k] = 1; stack.push(k); }
+    }
+    const shut = (k) => k === extra || this.blocked[k] || (this.struct[k] && this.struct[k].def.solid);
+    while (stack.length) {
+      const k = stack.pop();
+      const i = k % cols, j = (k / cols) | 0;
+      for (const [di, dj] of N8) {
+        const ni = i + di, nj = j + dj;
+        if (!this.inside(ni, nj)) continue;
+        const nk = this.idx(ni, nj);
+        if (seen[nk] || shut(nk)) continue;
+        if (Math.abs(this.h[nk] - this.h[k]) > STEP) continue;
+        if (di !== 0 && dj !== 0 && (shut(this.idx(i + di, j)) || shut(this.idx(i, j + dj)))) continue;
+        seen[nk] = 1;
+        stack.push(nk);
+      }
+    }
+    for (const [hx, hz] of this.hives) {
+      const i = this.ci(hx), j = this.cj(hz);
+      if (this.inside(i, j) && isFinite(this.dist[this.idx(i, j)]) && !seen[this.idx(i, j)]) return false;
+    }
+    return true;
   }
 
   distAt(x, z) {

@@ -4,7 +4,7 @@
 export const BUILDINGS = {
   barricade: {
     name: 'Barricade', short: 'Wall', cost: 25, solid: true, navCost: 10, rotatable: true,
-    desc: 'Cheap armored wall. Aliens walk around it if they can, or chew through it if they must.',
+    desc: 'Cheap armored wall: build a maze the swarm has to walk through (you can never seal the road completely). Repaired for free after every wave.',
     levels: [
       { hp: 420 },
       { hp: 800, cost: 45, note: 'Reinforced plating' },
@@ -68,11 +68,11 @@ export const BUILDINGS = {
   },
   shield: {
     name: 'Energy Shield', short: 'Shield', cost: 140, solid: true, navCost: 14, rotatable: true,
-    desc: 'Holographic barrier. Blocks aliens, lets your own bullets through and recharges when it is not being hit. Needs power.',
+    desc: 'Holographic barrier. Blocks aliens, lets your own bullets through and slowly recharges after 5 s without being hit. Needs power.',
     levels: [
-      { hp: 380, regen: 30, power: 2 },
-      { hp: 650, regen: 50, power: 3, cost: 120, note: 'Stronger field, faster recharge' },
-      { hp: 1000, regen: 80, thorns: 10, power: 4, cost: 220, note: 'Overcharged: shocks attackers' },
+      { hp: 380, regen: 12, power: 2 },
+      { hp: 650, regen: 22, power: 3, cost: 120, note: 'Stronger field, faster recharge' },
+      { hp: 1000, regen: 36, thorns: 10, power: 4, cost: 220, note: 'Overcharged: shocks attackers' },
     ],
   },
 

@@ -252,6 +252,7 @@ function endWave() {
   game.phaseTimer = game.phaseTotal = BUILD_TIME;
   const bonus = 60 + game.wave * 10;
   game.addCredits(bonus);
+  if (game.build.repairWalls()) game.hud.toast('Barricades repaired', 'good');
   game.world.nightTarget = 0;
   game.world.hives.forEach((h) => (h.active = false));
   chooseNextHives();

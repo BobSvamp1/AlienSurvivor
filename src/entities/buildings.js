@@ -594,6 +594,7 @@ export class BuildSystem {
     if (game.world.elev.span(x, z, 0.9) > 0.8) return 'Too steep';
     if (Math.hypot(x - game.core.pos.x, z - game.core.pos.z) < game.core.radius + 1.8) return 'Too close to the core';
     for (const h of game.world.hives) if (Math.hypot(x - h.pos.x, z - h.pos.z) < 7) return 'Too close to a hive';
+    if (def.solid && !nav.pathOpenWithout(k)) return 'Must leave a path open for the swarm';
     if (def.solid) {
       const inside = (px, pz, r) => Math.abs(px - x) < CELL / 2 + r && Math.abs(pz - z) < CELL / 2 + r;
       for (const p of game.players) if (!p.dead && inside(p.pos.x, p.pos.z, p.radius)) return 'Something is in the way';
@@ -962,6 +963,18 @@ export class BuildSystem {
     }
   }
 
+  // between waves the crew patches up every barricade for free
+  repairWalls() {
+    let n = 0;
+    for (const s of this.structures) {
+      if (s.type !== 'barricade' || s.hp >= s.maxHp) continue;
+      s.hp = s.maxHp;
+      n++;
+      this.game.fx.burst(_v.set(s.x, s.y + 1.2, s.z), '#7ae8ff', 6, 2, 0.08);
+    }
+    return n;
+  }
+
   damageArea(x, z, r, amount) {
     for (const s of [...this.structures]) {
       if (!isFinite(s.hp)) continue;
@@ -1145,7 +1158,7 @@ export class BuildSystem {
     const g = this.game;
     const u = s.parts.fieldU;
     if (!u) return;
-    if (!s.offline && g.time - (s.lastHit || -99) > 2.5 && s.hp < s.maxHp) s.hp = Math.min(s.maxHp, s.hp + this.stat(s, 'regen') * dt);
+    if (!s.offline && g.time - (s.lastHit || -99) > 5 && s.hp < s.maxHp) s.hp = Math.min(s.maxHp, s.hp + this.stat(s, 'regen') * dt);
     const frac = s.hp / s.maxHp;
     u.time.value = g.time + s.x;
     u.strength.value = s.offline ? 0.15 + Math.random() * 0.1 : 0.45 + frac * 0.55;

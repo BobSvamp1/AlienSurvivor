@@ -83,8 +83,8 @@ export const MAPS = [
     dressing: { light: '#ffe2b0', gateLight: '#ffb070' },
     theme: CANYON,
     elevation(e) {
-      e.base(4.6);
-      e.relief(2.0, 0.09);
+      e.base(8.6);
+      e.relief(1.2, 0.09); // tall rock walls: clearly nothing to climb
       // the hive cave
       e.poly([[-42, -54], [-30, -56], [-18, -50], [-17, -38], [-24, -31], [-38, -32], [-43, -42]], 0, { rough: 1.4 });
       // a chasm the road crosses on a natural bridge
@@ -122,8 +122,8 @@ export const MAPS = [
     dressing: { light: '#ffd8a8', gateLight: '#ff9a60' },
     theme: { ...CANYON, day: { ...CANYON.day, top: '#4a5a8e', horizon: '#ff9a6a', fog: '#cc8060', sunI: 2.8 }, planet: { color: '#cfe4ff', ring: true, pos: [240, 120, -240], size: 46 }, sunDir: [0.5, 0.45, -0.55] },
     elevation(e) {
-      e.base(4.8);
-      e.relief(2.0, 0.09);
+      e.base(8.6);
+      e.relief(1.2, 0.09); // tall rock walls: clearly nothing to climb
       e.poly([[-52, -56], [-40, -58], [-28, -54], [-27, -42], [-32, -34], [-48, -34], [-53, -44]], 0, { rough: 1.4 });
       e.poly([[52, -56], [40, -58], [28, -54], [27, -42], [32, -34], [48, -34], [53, -44]], 0, { rough: 1.4 });
       // the gorge down the middle
@@ -164,8 +164,8 @@ export const MAPS = [
     dressing: { light: '#ffc890', gateLight: '#ff8a50' },
     theme: VOLCANIC,
     elevation(e) {
-      e.base(5);
-      e.relief(2.0, 0.08);
+      e.base(8.6);
+      e.relief(1.2, 0.09); // tall rock walls: clearly nothing to climb
       // hive caves
       e.poly([[-60, -50], [-48, -54], [-38, -48], [-37, -36], [-44, -29], [-56, -31], [-61, -40]], 0, { rough: 1.4 });
       e.poly([[-60, 30], [-48, 26], [-38, 30], [-37, 42], [-44, 49], [-56, 48], [-61, 40]], 0, { rough: 1.4 });
@@ -216,8 +216,8 @@ export const MAPS = [
     dressing: { light: '#d8f0ff', gateLight: '#7ad0ff' },
     theme: GLACIER,
     elevation(e) {
-      e.base(5.2);
-      e.relief(2.2, 0.08);
+      e.base(8.6);
+      e.relief(1.2, 0.09); // tall rock walls: clearly nothing to climb
       e.poly([[-58, -54], [-46, -57], [-34, -52], [-33, -40], [-40, -33], [-54, -34], [-59, -44]], 0, { rough: 1.4 });
       e.poly([[-60, 2], [-50, -2], [-40, 4], [-40, 16], [-48, 22], [-58, 18]], 0, { rough: 1.4 });
       // the abyss through the middle
@@ -280,7 +280,7 @@ export const MAPS = [
     },
     elevation(e) {
       e.base(7); // solid rock; every room and corridor is cut into it
-      e.relief(1.8, 0.08);
+      e.relief(1.0, 0.08);
       // --- hive caves (rough, natural walls)
       e.poly([[-44, -56], [-30, -60], [-16, -57], [-13, -46], [-15, -36], [-17, -29], [-28, -28], [-38, -31], [-43, -40]], 0, { rough: 1.4 });
       e.poly([[13, -58], [26, -61], [40, -58], [43, -47], [40, -36], [32, -29], [18, -29], [14, -38]], 0, { rough: 1.4 });
@@ -352,7 +352,7 @@ export const MAPS = [
     },
     elevation(e) {
       e.base(7);
-      e.relief(1.8, 0.08);
+      e.relief(1.0, 0.08);
       // the rift: a bottomless chasm across the whole station
       e.rect(-34, -9, 34, 15, -22, { rough: 1.2 });
       // hive caves

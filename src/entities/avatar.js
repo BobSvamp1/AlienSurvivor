@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { mocap, Pose, clipDuration } from './mocap.js';
+import { SKINNED, skinnedReady, cloneSkinned } from './skinned.js';
 import { wornMetal, texSet } from '../core/materials.js';
 import { mergeGeos } from '../core/geomerge.js';
 import { groundAt } from '../world/elevation.js';
@@ -158,6 +159,10 @@ function nameTag(name, color) {
 const _pq = new THREE.Quaternion();
 const _X = new THREE.Vector3(1, 0, 0);
 const _I = new THREE.Quaternion();
+const _rq = new THREE.Quaternion(), _pw = new THREE.Quaternion(), _tq = new THREE.Quaternion();
+const _ax = new THREE.Vector3(), _h1 = new THREE.Vector3(), _h2 = new THREE.Vector3(), _h3 = new THREE.Vector3();
+const _UP = new THREE.Vector3(0, 1, 0);
+const _m4 = new THREE.Matrix4();
 
 export class Avatar {
   constructor(scene, name, color, cls = 'marine') {
@@ -168,6 +173,91 @@ export class Avatar {
     const M = mats(cls, color);
     this.M = M;
     const root = new THREE.Group();
+    this.wantSkin = SKINNED.includes(cls);
+    if (this.wantSkin && skinnedReady(cls)) {
+      this.init(scene, root, name, color);
+      this.buildSkinned();
+      return;
+    }
+    this.buildProcedural(root, K, M, cls);
+    this.init(scene, root, name, color);
+  }
+
+  init(scene, root, name, color) {
+    this.tag = nameTag(name, color);
+    this.tag.position.y = 2.32;
+    root.add(this.tag);
+    scene.add(root);
+    this.root = root;
+    this.walk = 0;
+    this.downT = 0;
+    this.kick = 0;
+    this.t = Math.random() * 10;
+    this.prev = null;
+    this.airT = 0;
+  }
+
+  // ------------------------------------------------------------ rigged model (Mixamo skeleton)
+  buildSkinned() {
+    const S = cloneSkinned(this.cls);
+    const M = this.M;
+    const model = S.scene;
+    model.rotation.y = Math.PI; // the model faces +z, avatars face -z
+    this.root.add(model);
+    this.skin = S;
+    this.model = model;
+    this.skinPose = new Pose(S.data.bones);
+    this.boneList = S.data.bones.map((n) => [n, model.getObjectByName(n)]).filter((b) => b[1]);
+    this.pitchBones = [[S.bones.Spine1, 0.3], [S.bones.Spine2, 0.45], [S.bones.Neck, 0.25]].filter((b) => b[0]);
+    const add = (geo, mat, parent, x = 0, y = 0, z = 0, rx = 0, ry = 0, rz = 0, shadow = true) => {
+      const m = new THREE.Mesh(geo, mat);
+      m.position.set(x, y, z);
+      m.rotation.set(rx, ry, rz);
+      m.castShadow = shadow;
+      m.receiveShadow = true;
+      parent.add(m);
+      return m;
+    };
+    // the weapon sits between the hands (placed every frame)
+    const gun = new THREE.Group();
+    gun.scale.setScalar(1.15);
+    this.root.add(gun);
+    this.gun = gun;
+    this.buildGun(this.cls, M, add, gun);
+    mergeDirect(gun);
+    // jetpack flames under the two thruster tubes on the back: anchors ride on the
+    // spine, the flames themselves always blast straight down
+    this.flames = [];
+    this.flameAnchors = [];
+    const sp = S.bones.Spine2 || S.bones.Hips;
+    this.root.updateMatrixWorld(true);
+    for (const sx of [-1, 1]) {
+      const anchor = new THREE.Object3D();
+      anchor.position.copy(sp.worldToLocal(model.localToWorld(new THREE.Vector3(sx * 0.23, 1.06, -0.22))));
+      sp.add(anchor);
+      this.flameAnchors.push(anchor);
+      const fl = new THREE.Group();
+      fl.add(new THREE.Mesh(new THREE.ConeGeometry(0.06, 0.55, 10).rotateX(Math.PI).translate(0, -0.275, 0), FLAME));
+      fl.add(new THREE.Mesh(new THREE.ConeGeometry(0.032, 0.3, 8).rotateX(Math.PI).translate(0, -0.15, 0), FLAME_CORE));
+      fl.visible = false;
+      this.root.add(fl);
+      this.flames.push(fl);
+    }
+  }
+
+  // a procedural avatar whose class got its rigged model loaded meanwhile: swap
+  upgrade() {
+    for (const o of [...this.root.children]) {
+      if (o === this.tag) continue;
+      this.root.remove(o);
+      o.traverse((m) => { if (m.isMesh && m.geometry) m.geometry.dispose(); });
+    }
+    this.hips = this.torso = this.chest = this.head = this.aim = this.pack = this.cape = null;
+    this.legs = [];
+    this.buildSkinned();
+  }
+
+  buildProcedural(root, K, M, cls) {
     const add = (geo, mat, parent, x = 0, y = 0, z = 0, rx = 0, ry = 0, rz = 0, shadow = true) => {
       const m = new THREE.Mesh(geo, mat);
       m.position.set(x, y, z);
@@ -298,20 +388,6 @@ export class Avatar {
     mergeDirect(chest);
     mergeDirect(torso);
     mergeDirect(hips);
-
-    // name tag
-    this.tag = nameTag(name, color);
-    this.tag.position.y = 2.32;
-    root.add(this.tag);
-
-    scene.add(root);
-    this.root = root;
-    this.walk = 0;
-    this.downT = 0;
-    this.kick = 0;
-    this.t = Math.random() * 10;
-    this.prev = null;
-    this.airT = 0;
   }
 
   // ------------------------------------------------------------ leg armour per class
@@ -560,6 +636,7 @@ export class Avatar {
   update(dt, pos, yaw, pitch, speed, dead) {
     const r = this.root;
     this.t += dt;
+    if (this.wantSkin && !this.skin && skinnedReady(this.cls)) this.upgrade();
     // movement direction relative to where the player looks (forwards / backwards / strafing)
     let fwd = 1, side = 0;
     if (this.prev && dt > 0) {
@@ -576,18 +653,19 @@ export class Avatar {
     this.sideS = (this.sideS ?? 0) + (side - (this.sideS ?? 0)) * Math.min(1, dt * 8);
 
     r.position.copy(pos);
-    // the hips turn a little towards a strafe, the torso keeps facing the aim
-    const hipTurn = this.sideS * 0.5 * Math.sign(this.fwdS || 1);
     r.rotation.y = yaw;
-    this.hips.rotation.y = -hipTurn;
-    this.torso.rotation.y = hipTurn;
-
-    // aim: the arms + weapon pitch fully, the head most of the way, the chest a little
     this.kick = Math.max(0, this.kick - dt * 9);
-    this.aim.rotation.x = pitch * 0.85 + this.kick * 0.08;
-    this.gun.position.z = -0.32 + this.kick * 0.05;
-    this.head.rotation.x = pitch * 0.5;
-    this.chest.rotation.x = pitch * 0.15;
+    if (!this.skin) {
+      // the hips turn a little towards a strafe, the torso keeps facing the aim
+      const hipTurn = this.sideS * 0.5 * Math.sign(this.fwdS || 1);
+      this.hips.rotation.y = -hipTurn;
+      this.torso.rotation.y = hipTurn;
+      // aim: the arms + weapon pitch fully, the head most of the way, the chest a little
+      this.aim.rotation.x = pitch * 0.85 + this.kick * 0.08;
+      this.gun.position.z = -0.32 + this.kick * 0.05;
+      this.head.rotation.x = pitch * 0.5;
+      this.chest.rotation.x = pitch * 0.15;
+    }
 
     // air: jetpack or falling
     const air = pos.y - groundAt(pos.x, pos.z);
@@ -601,6 +679,13 @@ export class Avatar {
       if (jet) f.scale.set(1, 0.75 + Math.random() * 0.5, 1);
     }
 
+    if (this.skin) {
+      this.animateSkinned(dt, this.skin.data.clips, speed, pitch, dead);
+      this.downT += ((dead ? 1 : 0) - this.downT) * Math.min(1, dt * 5);
+      r.rotation.x = 0;
+      this.tag.visible = this.downT < 0.5;
+      return;
+    }
     const M = mocap();
     if (M) {
       this.animate(dt, M, speed, pitch, dead);
@@ -642,6 +727,61 @@ export class Avatar {
   animate(dt, M, speed, pitch, dead) {
     const C = M.clips;
     const P = this.pose || (this.pose = new Pose());
+    const { mv, f, alive } = this.blend(P, C, dt, speed, dead);
+    // longer strides when running fast
+    const k = 1 + (C.run ? 0.25 * (1 - f) : 0.55) * THREE.MathUtils.clamp((speed - 3) / 6, 0, 1) * mv;
+    const L = 0.93;
+    this.hips.quaternion.copy(P.q.hips);
+    this.hips.position.set(P.hx * L, 0.96 + P.hy * L, P.hz * L);
+    this.torso.quaternion.copy(P.q.torso);
+    _pq.setFromAxisAngle(_X, pitch * 0.15 * alive);
+    this.chest.quaternion.copy(P.q.chest).multiply(_pq);
+    _pq.setFromAxisAngle(_X, pitch * 0.5 * alive);
+    this.head.quaternion.copy(P.q.head).multiply(_pq);
+    const [lL, lR] = this.legs[0].side < 0 ? this.legs : [this.legs[1], this.legs[0]];
+    const set = (obj, q, kk = 1) => { if (kk === 1) obj.quaternion.copy(q); else obj.quaternion.slerpQuaternions(_I, q, kk); };
+    set(lL.hip, P.q.lhip, k); set(lL.knee, P.q.lknee, k); set(lL.ankle, P.q.lankle);
+    set(lR.hip, P.q.rhip, k); set(lR.knee, P.q.rknee, k); set(lR.ankle, P.q.rankle);
+    if (this.cape) this.cape.rotation.x = 0.08 + mv * 0.55 * Math.max(0, f) + this.airT * 0.7 + Math.sin(this.t * 2.3) * 0.04;
+  }
+
+  // the rigged model: same clip blend, applied to the skeleton; the spine bends with
+  // the aim and the weapon is held between the two hands
+  animateSkinned(dt, C, speed, pitch, dead) {
+    const P = this.skinPose;
+    const { alive } = this.blend(P, C, dt, speed, dead);
+    for (const [n, b] of this.boneList) b.quaternion.copy(P.q[n]);
+    this.skin.bones.Hips.position.set(P.hx, P.hy, P.hz);
+    // aim: bend the spine and neck around the avatar's sideways axis
+    this.root.getWorldQuaternion(_rq);
+    _ax.set(1, 0, 0).applyQuaternion(_rq);
+    for (const [b, frac] of this.pitchBones) {
+      b.parent.getWorldQuaternion(_pw);
+      _pq.setFromAxisAngle(_ax, pitch * frac * alive);
+      _tq.copy(_pw).invert().multiply(_pq).multiply(_pw);
+      b.quaternion.premultiply(_tq);
+    }
+    this.root.updateMatrixWorld(true);
+    for (let i = 0; i < this.flames.length; i++) {
+      if (this.flames[i].visible) this.root.worldToLocal(this.flameAnchors[i].getWorldPosition(this.flames[i].position));
+    }
+    // weapon: grip in the right palm, barrel pointing through the left hand
+    const B = this.skin.bones, g = this.gun;
+    g.visible = alive > 0.5;
+    if (!g.visible) return;
+    const rh = _h1.lerpVectors(B.RightHand.getWorldPosition(_h1), (B.RightHandIndex1 || B.RightHand).getWorldPosition(_h3), 0.45);
+    const lh = (B.LeftHandIndex1 || B.LeftHand).getWorldPosition(_h2);
+    this.root.worldToLocal(rh);
+    this.root.worldToLocal(lh);
+    _m4.lookAt(rh, lh, _UP);
+    g.quaternion.setFromRotationMatrix(_m4);
+    // the grip (gun space 0,-0.12,0.09) sits in the hand; recoil pushes back along the barrel
+    g.position.set(0, -0.1, 0.09 - this.kick * 0.05).multiplyScalar(g.scale.x).applyQuaternion(g.quaternion);
+    g.position.subVectors(rh, g.position);
+  }
+
+  // clip weights shared by both bodies: locomotion by move direction, idle, jump, death
+  blend(P, C, dt, speed, dead) {
     P.reset();
     // knocked down: the death clip plays once (and runs backwards when revived)
     this.deadT = dead ? (this.deadT || 0) + dt : Math.max(0, (this.deadT || 0) - dt * 3);
@@ -664,28 +804,17 @@ export class Avatar {
     if (C.jump) P.add(C.jump, (this.vy > 0.5 ? 0.32 : 0.5) * clipDuration(C.jump), false, this.airT * alive);
     if (wDead) P.add(C.death, this.deadT, false, wDead);
     P.finish();
-    // longer strides when running fast
-    const k = 1 + (C.run ? 0.25 * (1 - wf) : 0.55) * THREE.MathUtils.clamp((speed - 3) / 6, 0, 1) * mv;
-    const L = 0.93;
-    this.hips.quaternion.copy(P.q.hips);
-    this.hips.position.set(P.hx * L, 0.96 + P.hy * L, P.hz * L);
-    this.torso.quaternion.copy(P.q.torso);
-    _pq.setFromAxisAngle(_X, pitch * 0.15 * alive);
-    this.chest.quaternion.copy(P.q.chest).multiply(_pq);
-    _pq.setFromAxisAngle(_X, pitch * 0.5 * alive);
-    this.head.quaternion.copy(P.q.head).multiply(_pq);
-    const [lL, lR] = this.legs[0].side < 0 ? this.legs : [this.legs[1], this.legs[0]];
-    const set = (obj, q, kk = 1) => { if (kk === 1) obj.quaternion.copy(q); else obj.quaternion.slerpQuaternions(_I, q, kk); };
-    set(lL.hip, P.q.lhip, k); set(lL.knee, P.q.lknee, k); set(lL.ankle, P.q.lankle);
-    set(lR.hip, P.q.rhip, k); set(lR.knee, P.q.rknee, k); set(lR.ankle, P.q.rankle);
-    if (this.cape) this.cape.rotation.x = 0.08 + mv * 0.55 * Math.max(0, f) + this.airT * 0.7 + Math.sin(this.t * 2.3) * 0.04;
+    return { mv, f, alive };
   }
 
   muzzleWorld(out) { this.muzzle.getWorldPosition(out); return out; }
 
   dispose() {
     this.scene.remove(this.root);
-    this.root.traverse((o) => { if (o.isMesh && o.geometry) o.geometry.dispose(); });
+    this.root.traverse((o) => {
+      if (o.isSkinnedMesh) o.skeleton.dispose(); // geometry + material are shared between copies
+      else if (o.isMesh && o.geometry) o.geometry.dispose();
+    });
     this.tag.material.map.dispose();
     this.tag.material.dispose();
   }

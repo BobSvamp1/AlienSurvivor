@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { mocap, Pose, clipDuration } from './mocap.js';
-import { SKINNED, skinnedReady, cloneSkinned } from './skinned.js';
+import { SKINNED, THRUSTERS, skinnedReady, cloneSkinned } from './skinned.js';
 import { wornMetal, texSet } from '../core/materials.js';
 import { mergeGeos } from '../core/geomerge.js';
 import { groundAt } from '../world/elevation.js';
@@ -164,6 +164,17 @@ const _ax = new THREE.Vector3(), _h1 = new THREE.Vector3(), _h2 = new THREE.Vect
 const _UP = new THREE.Vector3(0, 1, 0);
 const _m4 = new THREE.Matrix4();
 
+// a point in the palm: from the wrist towards the knuckles (k = 1 at the knuckles);
+// rigs without finger bones carry on along the forearm
+function palm(B, side, k, out) {
+  const hand = B[side + 'Hand'];
+  hand.getWorldPosition(out);
+  const f = B[side + 'HandIndex1'];
+  if (f) return out.lerp(f.getWorldPosition(_h3), k);
+  B[side + 'ForeArm'].getWorldPosition(_h3);
+  return out.addScaledVector(_h3.sub(out).normalize(), -0.09 * k);
+}
+
 export class Avatar {
   constructor(scene, name, color, cls = 'marine') {
     this.scene = scene;
@@ -231,9 +242,9 @@ export class Avatar {
     this.flameAnchors = [];
     const sp = S.bones.Spine2 || S.bones.Hips;
     this.root.updateMatrixWorld(true);
-    for (const sx of [-1, 1]) {
+    for (const at of THRUSTERS[this.cls] || THRUSTERS.marine) {
       const anchor = new THREE.Object3D();
-      anchor.position.copy(sp.worldToLocal(model.localToWorld(new THREE.Vector3(sx * 0.23, 1.06, -0.22))));
+      anchor.position.copy(sp.worldToLocal(model.localToWorld(new THREE.Vector3(...at))));
       sp.add(anchor);
       this.flameAnchors.push(anchor);
       const fl = new THREE.Group();
@@ -769,8 +780,8 @@ export class Avatar {
     const B = this.skin.bones, g = this.gun;
     g.visible = alive > 0.5;
     if (!g.visible) return;
-    const rh = _h1.lerpVectors(B.RightHand.getWorldPosition(_h1), (B.RightHandIndex1 || B.RightHand).getWorldPosition(_h3), 0.45);
-    const lh = (B.LeftHandIndex1 || B.LeftHand).getWorldPosition(_h2);
+    const rh = palm(B, 'Right', 0.45, _h1);
+    const lh = palm(B, 'Left', 1, _h2);
     this.root.worldToLocal(rh);
     this.root.worldToLocal(lh);
     _m4.lookAt(rh, lh, _UP);

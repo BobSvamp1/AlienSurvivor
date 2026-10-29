@@ -7,7 +7,13 @@ import * as SkeletonUtils from 'three/addons/utils/SkeletonUtils.js';
 // retargeted offline onto that model's own skeleton (per-bone local quaternions plus
 // the hip position, 30 fps). Classes without a model keep the procedural avatar.
 
-export const SKINNED = ['marine'];
+export const SKINNED = ['marine', 'engineer'];
+
+// where the jetpack thrusters sit on each model (model space, metres; the model faces +z)
+export const THRUSTERS = {
+  marine: [[-0.23, 1.06, -0.22], [0.23, 1.06, -0.22]],
+  engineer: [[-0.18, 0.95, -0.26], [0.18, 0.95, -0.26]],
+};
 
 const BASE = import.meta.env?.BASE_URL || '/';
 const READY = {};

@@ -9,6 +9,10 @@ import { fbm } from '../core/rng.js';
 //   e.rect(x1, z1, x2, z2, h, opts)   rectangular plateau
 //   e.poly([[x, z], ...], h, opts)    any outline
 //   e.ramp(x1, z1, x2, z2, w, h1, h2) straight slope from (x1,z1) at h1 to (x2,z2) at h2
+//   e.path([[x, z, h?], ...], w, opts) smooth winding road through the points (heights
+//                                     blend along it; default 0), round ends
+//   e.relief(amp, scale)              lumpy, uneven ground on everything not painted
+//   e.platform(x, z, r, h)            raised pad only players reach (jetpack), buildable
 // Shapes are painted in order, later ones on top. `opts.rough` wobbles the edge
 // so cliffs look natural (0 = perfectly straight).
 //
@@ -30,6 +34,9 @@ export class Elevation {
     this.halfZ = map.halfZ;
     this.shapes = [];
     this.baseH = 0;
+    this.reliefAmp = 0;
+    this.reliefScale = 0.08;
+    this.platforms = [];
     if (map.elevation) map.elevation(this.builder());
     this.flat = !this.shapes.length && this.baseH === 0;
     if (this.flat) return;
@@ -52,12 +59,55 @@ export class Elevation {
         const dx = x2 - x1, dz = z2 - z1, len = Math.hypot(dx, dz);
         S.push({ kind: 'ramp', x1, z1, ux: dx / len, uz: dz / len, len, w, h1, h2 });
       },
+      path: (pts, w, o = {}) => {
+        // Catmull-Rom through the points, painted as short round-ended segments
+        const P = pts.map((p) => [p[0], p[1], p[2] ?? o.h ?? 0]);
+        const at = (i) => P[Math.max(0, Math.min(P.length - 1, i))];
+        const out = [];
+        for (let i = 0; i < P.length - 1; i++) {
+          const p0 = at(i - 1), p1 = at(i), p2 = at(i + 1), p3 = at(i + 2);
+          const n = Math.max(2, Math.ceil(Math.hypot(p2[0] - p1[0], p2[1] - p1[1]) / 1.2));
+          for (let k = 0; k < n; k++) {
+            const t = k / n, t2 = t * t, t3 = t2 * t;
+            const c = (a, b, cc, d) => 0.5 * (2 * b + (cc - a) * t + (2 * a - 5 * b + 4 * cc - d) * t2 + (3 * b - a - 3 * cc + d) * t3);
+            out.push([c(p0[0], p1[0], p2[0], p3[0]), c(p0[1], p1[1], p2[1], p3[1]), p1[2] + (p2[2] - p1[2]) * (t * t * (3 - 2 * t))]);
+          }
+        }
+        out.push(P[P.length - 1]);
+        const r = w / 2;
+        for (let i = 0; i < out.length - 1; i++) {
+          const [ax, az, ha] = out[i], [bx, bz, hb] = out[i + 1];
+          S.push({ kind: 'seg', ax, az, bx, bz, ha, hb, r, rough: o.rough ?? 0.5,
+            x1: Math.min(ax, bx) - r - 2, x2: Math.max(ax, bx) + r + 2, z1: Math.min(az, bz) - r - 2, z2: Math.max(az, bz) + r + 2 });
+        }
+      },
+      relief: (amp, scale = 0.08) => { this.reliefAmp = amp; this.reliefScale = scale; },
+      platform: (x, z, r, h) => {
+        // snap it to the nearest road, overlapping its edge a little so you can jetpack
+        // straight up onto it from the road
+        let best = null;
+        for (const sh of S) {
+          if (sh.kind !== 'seg') continue;
+          const ex = sh.bx - sh.ax, ez = sh.bz - sh.az, l2 = ex * ex + ez * ez || 1;
+          const t = Math.max(0, Math.min(1, ((x - sh.ax) * ex + (z - sh.az) * ez) / l2));
+          const qx = sh.ax + ex * t, qz = sh.az + ez * t, d = Math.hypot(x - qx, z - qz);
+          if (!best || d < best.d) best = { d, qx, qz, rr: sh.r };
+        }
+        if (best && best.d > 1e-3 && best.d < best.rr + r + 8) {
+          const k = (best.rr + r - 1.4) / best.d;
+          x = best.qx + (x - best.qx) * k;
+          z = best.qz + (z - best.qz) * k;
+        }
+        this.platforms.push({ x, z, r, h });
+        S.push({ kind: 'circle', x, z, r, h, rough: 0.35 });
+      },
     };
   }
 
   // exact (unbaked) height
   raw(x, z) {
     let h = this.baseH;
+    if (this.reliefAmp) h += (fbm(x * this.reliefScale + 11, z * this.reliefScale - 7, 33, 4) - 0.5) * 2 * this.reliefAmp;
     // one shared wobble for all edges keeps neighbouring cliffs consistent
     const wx = (fbm(x * 0.13, z * 0.13, 71, 3) - 0.5) * 2;
     const wz = (fbm(x * 0.13 + 40, z * 0.13 - 17, 72, 3) - 0.5) * 2;
@@ -73,6 +123,15 @@ export class Elevation {
         continue;
       }
       const qx = x + wx * s.rough, qz = z + wz * s.rough;
+      if (s.kind === 'seg') {
+        if (qx < s.x1 || qx > s.x2 || qz < s.z1 || qz > s.z2) continue;
+        const ex = s.bx - s.ax, ez = s.bz - s.az;
+        const l2 = ex * ex + ez * ez || 1;
+        const t = Math.max(0, Math.min(1, ((qx - s.ax) * ex + (qz - s.az) * ez) / l2));
+        const dx = qx - (s.ax + ex * t), dz = qz - (s.az + ez * t);
+        if (dx * dx + dz * dz <= s.r * s.r) h = s.ha + (s.hb - s.ha) * t;
+        continue;
+      }
       let inside = false;
       if (s.kind === 'circle') inside = (qx - s.x) ** 2 + (qz - s.z) ** 2 <= s.r * s.r;
       else if (s.kind === 'rect') inside = qx >= s.x1 && qx <= s.x2 && qz >= s.z1 && qz <= s.z2;

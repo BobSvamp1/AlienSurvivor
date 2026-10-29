@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { ENEMIES } from '../data/enemies.js';
 import { BugRig, flushLegs } from './bugRig.js';
 import { groundAt, CLIMB } from '../world/elevation.js';
-import { PIT } from '../world/nav.js';
+import { PIT, VOID } from '../world/nav.js';
 import { SegmentRig, BipedRig, JellyRig } from './rigs.js';
 
 const _v = new THREE.Vector3();
@@ -195,7 +195,7 @@ export class EnemyManager {
     const mult = game.enemyMult();
     for (let k = 0; k < n; k++) {
       const a = (k / n) * Math.PI * 2 + Math.random() * 0.5;
-      const x = e.pos.x + Math.cos(a) * 0.9, z = e.pos.z + Math.sin(a) * 0.9;
+      const [x, z] = this.safeSpot(e, e.pos.x + Math.cos(a) * 0.9, e.pos.z + Math.sin(a) * 0.9);
       const s = this.spawn(type, x, z, mult, false);
       s.pos.y = groundAt(x, z);
       s.route = e.route;
@@ -382,7 +382,7 @@ export class EnemyManager {
         }
 
         if (speed > 0 && !charging) {
-          if (def.leapRange && tgtPlayer && best < def.leapRange && best > 3 && e.leapCd <= 0) {
+          if (def.leapRange && tgtPlayer && best < def.leapRange && best > 3 && e.leapCd <= 0 && this.canLand(e, tgtPlayer.pos.x, tgtPlayer.pos.z)) {
             this.startLeap(e, tgtPlayer.pos.x, tgtPlayer.pos.z, tgtPlayer);
           } else if (tgtPlayer) {
             const reach = def.radius + tgtPlayer.radius + 0.5;
@@ -471,10 +471,13 @@ export class EnemyManager {
         if (charging && e.chargeT > 0) this.chargeImpact(e, touched, ox, oz, dt, speed);
         // no walking up cliffs: slide along them instead
         if (e.spawnT >= 1) {
+          // (nor onto the tops of the canyon walls, however gentle the slope up there)
           const lim = e.pos.y + CLIMB + 0.2;
-          if (groundAt(e.pos.x, e.pos.z) > lim) {
-            if (groundAt(e.pos.x, oz) <= lim) e.pos.z = oz;
-            else if (groundAt(ox, e.pos.z) <= lim) e.pos.x = ox;
+          const wasOff = this.offLimits(ox, oz);
+          const bad = (x, z) => groundAt(x, z) > lim || (!wasOff && this.offLimits(x, z));
+          if (bad(e.pos.x, e.pos.z)) {
+            if (!bad(e.pos.x, oz)) e.pos.z = oz;
+            else if (!bad(ox, e.pos.z)) e.pos.x = ox;
             else { e.pos.x = ox; e.pos.z = oz; }
           }
           const gy = groundAt(e.pos.x, e.pos.z);
@@ -582,8 +585,25 @@ export class EnemyManager {
     const ox = e.pos.x, oz = e.pos.z;
     e.pos.x += dx; e.pos.z += dz;
     nav.pushOut(e.pos, e.def.radius * 0.85, ROCK_CAP);
-    // never shoved up a cliff
-    if (groundAt(e.pos.x, e.pos.z) > e.pos.y + CLIMB + 0.2) { e.pos.x = ox; e.pos.z = oz; }
+    // never shoved up a cliff or onto a wall
+    if (groundAt(e.pos.x, e.pos.z) > e.pos.y + CLIMB + 0.2 || (this.offLimits(e.pos.x, e.pos.z) && !this.offLimits(ox, oz))) { e.pos.x = ox; e.pos.z = oz; }
+  }
+
+  // where to put a newborn next to its parent: never inside a wall or up on one
+  safeSpot(e, x, z) {
+    const nav = this.game.world.nav;
+    const i = nav.ci(x), j = nav.cj(z);
+    const bad = !nav.inside(i, j) || this.offLimits(x, z) || nav.blocked[nav.idx(i, j)] || groundAt(x, z) > e.pos.y + CLIMB + 0.2;
+    return bad ? [e.pos.x + (Math.random() - 0.5) * 0.4, e.pos.z + (Math.random() - 0.5) * 0.4] : [x, z];
+  }
+
+  // high ground the swarm can never reach (wall tops, raised platforms)
+  offLimits(x, z) {
+    const nav = this.game.world.nav;
+    const i = nav.ci(x), j = nav.cj(z);
+    if (!nav.inside(i, j)) return true;
+    const k = nav.idx(i, j);
+    return nav.blocked[k] === VOID || (nav.plat && nav.plat[k] === 1);
   }
 
   // ------------------------------------------------------------ mender
@@ -1022,6 +1042,19 @@ export class EnemyManager {
     this.game.audio.leap(e.pos);
   }
 
+  // a leap may only end on ground the swarm can walk on, never up on a wall, a rock or
+  // a platform (jumping down is fine, jumping up only a little)
+  canLand(e, x, z) {
+    const nav = this.game.world.nav;
+    const i = nav.ci(x), j = nav.cj(z);
+    if (!nav.inside(i, j)) return false;
+    const k = nav.idx(i, j);
+    if (nav.blocked[k] || !isFinite(nav.dist[k])) return false;
+    const s = nav.struct[k];
+    if (s && s.def.solid) return false;
+    return groundAt(x, z) <= e.pos.y + 1.2;
+  }
+
   tryLeapOver(e, s) {
     const nav = this.game.world.nav;
     const dx = s.x - e.pos.x, dz = s.z - e.pos.z;
@@ -1030,7 +1063,7 @@ export class EnemyManager {
       const x = e.pos.x + (dx / d) * dist;
       const z = e.pos.z + (dz / d) * dist;
       const i = nav.ci(x), j = nav.cj(z);
-      if (!nav.solidAt(i, j) && !nav.solidAt(nav.ci(x + 0.6), j) && !nav.solidAt(i, nav.cj(z + 0.6))) {
+      if (!nav.solidAt(i, j) && !nav.solidAt(nav.ci(x + 0.6), j) && !nav.solidAt(i, nav.cj(z + 0.6)) && this.canLand(e, x, z)) {
         this.startLeap(e, x, z);
         return true;
       }
@@ -1120,8 +1153,7 @@ export class EnemyManager {
         e.rig.attackT = 1;
         for (let k = 0; k < 4; k++) {
           const a = e.yaw + Math.PI + (k - 1.5) * 0.5;
-          const x = e.pos.x - Math.sin(a) * 3.5;
-          const z = e.pos.z - Math.cos(a) * 3.5;
+          const [x, z] = this.safeSpot(e, e.pos.x - Math.sin(a) * 3.5, e.pos.z - Math.cos(a) * 3.5);
           const s = this.spawn('swarmling', x, z, game.enemyMult(), false);
           s.pos.y = groundAt(x, z);
           game.waveExtra++;

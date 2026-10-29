@@ -130,13 +130,23 @@ export class Menus {
     if (map.elevation) {
       // high ground drawn lighter, cliff edges dark
       const el = new Elevation(map);
+      const winding = el.reliefAmp > 0; // maps of roads between rock walls
       for (let j = 0; j < nav.rows; j++) for (let i = 0; i < nav.cols; i++) {
         const x = nav.cx(i), z = nav.cz(j);
         const h = el.at(x, z);
-        if (el.span(x, z, 0.9) > 1.25) g.fillStyle = 'rgba(0,0,0,0.45)';
-        else if (h > 0.3) g.fillStyle = `rgba(255,240,215,${Math.min(0.4, h * 0.045)})`;
+        if (h < -2) g.fillStyle = t.lava ? '#ff6a1a' : 'rgba(0,0,0,0.6)';
+        else if (el.span(x, z, 0.9) > 1.25) g.fillStyle = 'rgba(0,0,0,0.45)';
+        else if (winding && h > 2.2 && !el.platforms.some((P) => Math.hypot(x - P.x, z - P.z) < P.r)) g.fillStyle = 'rgba(20,12,10,0.5)';
+        else if (!winding && h > 0.3) g.fillStyle = `rgba(255,240,215,${Math.min(0.4, h * 0.045)})`;
         else continue;
         g.fillRect(ox + i * cs, oz + j * cs, cs + 0.5, cs + 0.5);
+      }
+      g.strokeStyle = '#3de0ff';
+      g.lineWidth = 1.5;
+      for (const P of el.platforms) {
+        g.beginPath();
+        g.arc(ox + (P.x + map.halfX) * scale, oz + (P.z + map.halfZ) * scale, Math.max(2, P.r * scale * 0.6), 0, Math.PI * 2);
+        g.stroke();
       }
     }
     for (let j = 0; j < nav.rows; j++) for (let i = 0; i < nav.cols; i++) {

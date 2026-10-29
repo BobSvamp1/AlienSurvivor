@@ -289,7 +289,9 @@ export class Player {
       if (g > this.pos.y + CLIMB) return false;
       // keep the whole body (not just its centre) off the cliff faces, so the camera
       // never ends up inside a wall
-      for (const [rx, rz] of RING) if (groundAt(x + rx, z + rz) > this.pos.y + CLIMB + 0.15) return false;
+      // (only the side you move towards counts, so you can always move away from a wall)
+      const mx = x - ox, mz = z - oz;
+      for (const [rx, rz] of RING) if (rx * mx + rz * mz > 1e-6 && groundAt(x + rx, z + rz) > this.pos.y + CLIMB + 0.15) return false;
       // places the swarm can never reach are off limits (tops of the rock walls)
       const i = nav.ci(x), j = nav.cj(z);
       if (nav.inside(i, j) && nav.blocked[nav.idx(i, j)] === VOID && g > this.lastGroundY + 1.2) return false;
@@ -317,7 +319,17 @@ export class Player {
     }
     const onStruct = standOn > terrain;
     const ground = onStruct ? standOn : terrain;
-    if (this.pos.y <= ground) {
+    const steepHere = !onStruct && slopeAt(this.pos.x, this.pos.z, _g) > STEEP;
+    if (this.pos.y <= ground && steepHere && !this.onGround) {
+      // flying into a cliff face: scrape up along it instead of landing on it (landing
+      // there would stop the jetpack and leave you stuck against the wall)
+      this.pos.y = ground;
+      if (this.vel.y < 0) this.vel.y = 0;
+      const l = Math.hypot(_g.x, _g.z) || 1;
+      this.pos.x -= (_g.x / l) * 2.5 * dt;
+      this.pos.z -= (_g.z / l) * 2.5 * dt;
+      this.onGround = false;
+    } else if (this.pos.y <= ground) {
       if (!this.onGround && this.vel.y < -6) { this.landKick = Math.min(1, -this.vel.y / 14); game.audio.footstep(); }
       this.pos.y = ground;
       this.vel.y = 0;

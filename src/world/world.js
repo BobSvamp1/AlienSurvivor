@@ -159,6 +159,17 @@ export class World {
     b.clear(map.core[0], map.core[1], 7);
     b.clear(map.spawn[0], map.spawn[1], 2.5);
     for (const [x, z] of map.hives) b.clear(x, z, 6);
+    // raised platforms: only players get up there (jetpack); they stay buildable
+    this.nav.plat = new Uint8Array(this.nav.blocked.length);
+    for (const P of this.elev.platforms) {
+      for (let j = 0; j < this.nav.rows; j++) for (let i = 0; i < this.nav.cols; i++) {
+        if (Math.hypot(this.nav.cx(i) - P.x, this.nav.cz(j) - P.z) < P.r - 0.6) {
+          const k = this.nav.idx(i, j);
+          this.nav.plat[k] = 1;
+          this.nav.blocked[k] = 0;
+        }
+      }
+    }
     this.markCliffs();
     this.clutterPlan = planClutter(this);
     this.coreRadius = 3.3;
@@ -181,6 +192,7 @@ export class World {
     }
     this.buildPools();
     this.buildPits();
+    this.buildPlatforms();
     if (this.map.dressing) this.buildDressing();
     this.buildCore();
     this.buildHives();
@@ -231,7 +243,7 @@ export class World {
     let filled = 0;
     for (let k = 0; k < nav.dist.length; k++) {
       // unreachable: rock on flat maps, plain (rock-free) high ground on canyon maps
-      if (!nav.blocked[k] && !isFinite(nav.dist[k])) { nav.blocked[k] = nav.h[k] > 1.5 ? VOID : 1; nav.pool[k] = 0; filled++; }
+      if (!nav.blocked[k] && !isFinite(nav.dist[k]) && !nav.plat[k]) { nav.blocked[k] = nav.h[k] > 1.5 ? VOID : 1; nav.pool[k] = 0; filled++; }
     }
     if (filled) nav.computeFlow(this.map.core[0], this.map.core[1], this.coreRadius);
   }
@@ -563,7 +575,17 @@ export class World {
       const z = nav.cz(j) + (rng() - 0.5) * 0.5;
       const hn = fbm(x * 0.12, z * 0.12, 21, 2);
       const type = nav.blocked[k];
-      if (type === CLUTTER || type === PIT || type === VOID) continue;
+      if (type === VOID) {
+        // loose boulders on the wall tops so they don't look like flat slabs
+        if (rng() < 0.1) {
+          const v = (rng() * 3) | 0;
+          const sc = 0.7 + rng() * 1.1;
+          rockAt(v, x, sc * 0.15, z, sc * (1 + rng() * 0.5), sc * (0.6 + rng() * 0.9), sc);
+          rockColors[v].push(new THREE.Color().setScalar(0.7 + rng() * 0.35));
+        }
+        continue;
+      }
+      if (type === CLUTTER || type === PIT) continue;
       if (type === CLIFF) {
         // loose boulders piled at the foot of cliffs
         if (rng() < 0.45) {
@@ -1024,6 +1046,7 @@ export class World {
       list.push(dummy.matrix.clone());
     }
     if (!list.length) return;
+    if (this.theme.lava) { this.buildLava(list); return; }
     // deep down: a faint toxic glow far below, so the chasm reads as bottomless
     const mat = new THREE.MeshStandardMaterial({ color: '#06120a', emissive: '#3aff6a', emissiveIntensity: 0.35, roughness: 0.6, fog: false });
     const m = this.instanced(new THREE.PlaneGeometry(1, 1), mat, list, { shadow: false });
@@ -1035,6 +1058,70 @@ export class World {
       const l = new THREE.PointLight('#7aff3a', 6, 12, 1.5);
       l.position.set(p.x, p.y + 1.5, p.z);
       this.group.add(l);
+    }
+  }
+
+  // molten rock at the bottom of the fissures: one big flowing sheet, glowing up the walls
+  buildLava(list) {
+    const L = this.theme.lava;
+    let lo = Infinity;
+    for (const mx of list) lo = Math.min(lo, mx.elements[13]);
+    const cv = document.createElement('canvas');
+    cv.width = cv.height = 256;
+    const g = cv.getContext('2d');
+    const img = g.createImageData(256, 256);
+    for (let y = 0; y < 256; y++) for (let x = 0; x < 256; x++) {
+      // tileable cells of cooled crust over bright molten cracks
+      const n = fbm(Math.cos((x / 256) * Math.PI * 2) * 2 + 5, Math.sin((x / 256) * Math.PI * 2) * 2 + Math.cos((y / 256) * Math.PI * 2) * 2, 3, 4);
+      const m = fbm(Math.sin((y / 256) * Math.PI * 2) * 2 + 9, Math.cos((x / 256) * Math.PI * 2) * 1.7 + 3, 8, 3);
+      const crack = 1 - Math.min(1, Math.abs(n - m) * 5.5);
+      const v = Math.pow(crack, 1.6);
+      const i = (y * 256 + x) * 4;
+      img.data[i] = 60 + v * 195; img.data[i + 1] = 12 + v * 150; img.data[i + 2] = 4 + v * 40; img.data[i + 3] = 255;
+    }
+    g.putImageData(img, 0, 0);
+    const tex = new THREE.CanvasTexture(cv);
+    tex.colorSpace = THREE.SRGBColorSpace;
+    tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+    const { halfX, halfZ } = this.map;
+    tex.repeat.set(halfX / 6, halfZ / 6);
+    const mat = new THREE.MeshStandardMaterial({ color: '#2a0a02', emissive: '#ffffff', emissiveMap: tex, emissiveIntensity: L.glow ?? 2.2, roughness: 0.85, fog: true, toneMapped: true });
+    const sheet = new THREE.Mesh(new THREE.PlaneGeometry(halfX * 2, halfZ * 2).rotateX(-Math.PI / 2), mat);
+    sheet.position.y = lo;
+    sheet.receiveShadow = false;
+    this.group.add(sheet);
+    this.lava = { tex, mat };
+    // warm light up the fissure walls
+    const n = Math.min(6, Math.max(1, Math.round(list.length / 10)));
+    for (let k = 0; k < n; k++) {
+      const p = new THREE.Vector3().setFromMatrixPosition(list[Math.floor(((k + 0.5) / n) * list.length)]);
+      const l = new THREE.PointLight('#ff6a1a', 14, 16, 1.6);
+      l.position.set(p.x, lo + 2.5, p.z);
+      this.group.add(l);
+    }
+  }
+
+  // raised pads players can fly up to: a metal deck with a glowing ring
+  buildPlatforms() {
+    const P = this.elev.platforms;
+    if (!P.length) return;
+    const deck = pbr('milmetal', { color: '#8a929c', metalness: 0.7 });
+    const ringMat = new THREE.MeshStandardMaterial({ color: '#7ae8ff', emissive: '#3de0ff', emissiveIntensity: 2.2, toneMapped: false });
+    const trim = pbr('gunmetal', { color: '#3a3e45' });
+    for (const p of P) {
+      const r = Math.min(p.r - 0.8, 3.2);
+      const y = this.elev.at(p.x, p.z);
+      const hex = new THREE.Mesh(new THREE.CylinderGeometry(r, r + 0.15, 0.22, 6), deck);
+      hex.position.set(p.x, y + 0.1, p.z);
+      hex.receiveShadow = true;
+      hex.castShadow = true;
+      this.group.add(hex);
+      const rim = new THREE.Mesh(new THREE.TorusGeometry(r * 0.72, 0.05, 6, 36).rotateX(Math.PI / 2), ringMat);
+      rim.position.set(p.x, y + 0.24, p.z);
+      this.group.add(rim);
+      const dot = new THREE.Mesh(new THREE.CylinderGeometry(r * 0.25, r * 0.25, 0.04, 6), trim);
+      dot.position.set(p.x, y + 0.23, p.z);
+      this.group.add(dot);
     }
   }
 
@@ -1385,6 +1472,11 @@ export class World {
 
   update(dt, time) {
     const g = this.game;
+    if (this.lava) {
+      this.lava.tex.offset.x += dt * 0.006;
+      this.lava.tex.offset.y += dt * 0.004;
+      this.lava.mat.emissiveIntensity = (this.theme.lava.glow ?? 2.2) * (0.9 + Math.sin(time * 1.3) * 0.1);
+    }
     this.paths.update(dt, g.inGame && !g.over && g.phase === 'build', g.nextHives || []);
     if (Math.abs(this.night - this.nightTarget) > 0.001) {
       this.night += (this.nightTarget - this.night) * Math.min(1, dt * 0.7);

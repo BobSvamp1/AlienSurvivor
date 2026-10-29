@@ -492,7 +492,9 @@ export class World {
       const z = pos.getZ(i);
       let h = this.terrainHeight(x, z);
       // on hilly maps the arena has its own detailed mesh; tuck this one underneath
-      if (hilly && Math.abs(x) < halfX - 0.6 && Math.abs(z) < halfZ - 0.6) h = Math.min(h, this.elev.at(x, z)) - 0.8;
+      // (well below the lowest point around it: its big triangles must never poke out
+      // through a steep cliff of the detailed mesh)
+      if (hilly && Math.abs(x) < halfX - 0.6 && Math.abs(z) < halfZ - 0.6) h = Math.min(h, this.elev.minAt(x, z, 1.5)) - 1.5;
       pos.setY(i, h);
       colorAt(x, z);
       colors[i * 3] = c.r; colors[i * 3 + 1] = c.g; colors[i * 3 + 2] = c.b;
@@ -516,10 +518,22 @@ export class World {
       ig.computeVertexNormals();
       const nor = ig.attributes.normal;
       const icol = new Float32Array(ip.count * 3);
+      // steepness of the surrounding cells, so the foot of a cliff darkens with it
+      // (otherwise long bright triangles run up the wall from the floor)
+      const cw = halfX * 4 + 1, ch = halfZ * 4 + 1;
+      const ny = new Float32Array(ip.count);
+      for (let r = 0; r < ch; r++) for (let c = 0; c < cw; c++) {
+        let m = 1;
+        for (let dr = -1; dr <= 1; dr++) for (let dc = -1; dc <= 1; dc++) {
+          const rr = r + dr, cc = c + dc;
+          if (rr >= 0 && rr < ch && cc >= 0 && cc < cw) m = Math.min(m, nor.getY(rr * cw + cc));
+        }
+        ny[r * cw + c] = m;
+      }
       for (let i = 0; i < ip.count; i++) {
         colorAt(ip.getX(i), ip.getZ(i));
         // cliff faces a little darker, with dark streaks
-        const steep = 1 - THREE.MathUtils.smoothstep(nor.getY(i), 0.45, 0.85);
+        const steep = 1 - THREE.MathUtils.smoothstep(ny[i], 0.45, 0.85);
         if (steep > 0) c.multiplyScalar(1 - steep * (0.25 + fbm(ip.getX(i) * 0.6, ip.getY(i) * 0.9 + ip.getZ(i) * 0.6, 8, 2) * 0.25));
         icol[i * 3] = c.r; icol[i * 3 + 1] = c.g; icol[i * 3 + 2] = c.b;
       }

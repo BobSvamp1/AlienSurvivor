@@ -88,7 +88,11 @@ export function triplanar({ top, side = top, topScale = 0.25, sideScale = 0.25, 
       .replace('#include <map_fragment>', /* glsl */ `
         vec3 tN = normalize(vTriNormal);
         vec3 tw = triW(tN);
-        ${slopeBlend ? 'float topK = smoothstep(0.55, 0.85, tN.y);' : 'float topK = tw.y;'}
+        // the top texture only where the actual triangle is flat enough: on tall cliffs one
+        // triangle spans metres of height, and blending by the smoothed vertex normal
+        // smeared the ground texture up the wall in long pale spikes
+        float faceY = abs(normalize(cross(dFdx(vTriPos), dFdy(vTriPos))).y);
+        ${slopeBlend ? 'float topK = smoothstep(0.55, 0.85, min(tN.y, faceY));' : 'float topK = tw.y;'}
         vec2 uvX = vTriPos.zy * sideScale; vec2 uvZ = vTriPos.xy * sideScale;
         vec2 uvYt = vTriPos.xz * topScale; vec2 uvYs = vTriPos.xz * sideScale;
         // side texture projected three ways
